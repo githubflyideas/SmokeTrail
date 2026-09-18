@@ -125,16 +125,37 @@ That is the whole cross-compile story, and keeping it that way is what ADR 1 buy
 
 Being precise about this, because "it compiles" and "it works" are different claims.
 
+**Run, passing:**
+
 | | |
 |---|---|
-| Linux build, full test suite | run, passing |
-| `selftest` on linux/amd64 | run, output above |
-| Cross-compile windows amd64 / 386 / arm64, `CGO_ENABLED=0` | run, clean |
-| `go vet` for linux and windows | run, clean |
-| ICMP against a live host on Windows | **not run** — no Windows machine in the loop yet |
-| Service install / uninstall / Event Log | **not run** |
-| `selftest` on Windows | **not run** — this is the M0 gate |
-| Binary size with the real pure-Go SQLite | **not measured**; expect ~20 MB |
+| Linux build + full test suite | clean |
+| `go vet`, linux and windows (amd64 + 386) | clean |
+| Cross-compile windows amd64 / 386 / arm64, `CGO_ENABLED=0` | clean |
+| **End-to-end console**: first-run setup → login → add target → probe → `/api/series` → logout → graceful shutdown | clean, see below |
+| `selftest` on linux/amd64 | clean, output above |
+| `IcmpSendEcho2` signature and `ICMP_ECHO_REPLY` layout vs. Microsoft docs | matches |
+| Struct offsets for both pointer widths (40 B on amd64, 28 B on 386) | matches the C ABI |
+
+The end-to-end run also produced the number that justifies ADR 2. A loopback TCP
+target measured **p50 = 0.135 ms, p90 = 0.238 ms, p99 = 0.274 ms** over 20 samples
+per round. Every one of those values rounds to 0 or 1 in a millisecond field, which
+is exactly what `ICMP_ECHO_REPLY.RoundTripTime` would have given us.
+
+**Not run — needs real Windows hardware:**
+
+| | |
+|---|---|
+| ICMP against a live host | the `IcmpSendEcho2` call path is checked against the docs and asserted by tests, but has never executed |
+| Service install / uninstall / Event Log | — |
+| `selftest` on Windows | **this is the open M0 gate** |
+| Inno Setup script compiles | no `iscc` available here |
+| Binary size with the real pure-Go SQLite | not measured; expect ~20 MB |
+
+`icmp_windows_test.go` asserts the struct layout on every Windows CI job and on
+each architecture shipped. A wrong field offset would not crash — it would silently
+read the wrong bytes and report plausible nonsense, which is the worst failure mode
+a measurement tool has, so it is pinned by a test rather than by a comment.
 
 The sandbox this was built in could not reach the Go module proxy, so
 `modernc.org/sqlite` was stood in for during verification. `go.mod` names the real
