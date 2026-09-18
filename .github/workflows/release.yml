@@ -1,0 +1,92 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g. 0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.24' }
+      - id: v
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        if: startsWith(github.ref, 'refs/tags/')
+      - id: v2
+        run: echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+      # One `go build` per target, no toolchain, no container. If this ever needs
+      # more than this, ADR 1 has been undone.
+      - name: cross-build
+        env:
+          V: ${{ steps.v.outputs.version || inputs.version }}
+        run: |
+          mkdir -p dist
+          for t in windows/amd64 windows/386 windows/arm64 linux/amd64 linux/arm64 darwin/arm64; do
+            os=${t%/*}; arch=${t#*/}; ext=""
+            [ "$os" = windows ] && ext=.exe
+            CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath \
+              -ldflags "-s -w -X main.version=v${V}" \
+              -o "dist/smoketrail-${os}-${arch}${ext}" .
+          done
+          ls -la dist/
+
+      # The portable zip carries an empty-but-present data/ folder. That single
+      # directory is the entire portable-vs-installed switch (ADR 5).
+      - name: portable zip
+        env:
+          V: ${{ steps.v.outputs.version || inputs.version }}
+        run: |
+          for arch in amd64 arm64; do
+            d=$(mktemp -d)
+            mkdir -p "$d/data"
+            cp "dist/smoketrail-windows-${arch}.exe" "$d/smoketrail.exe"
+            cp packaging/portable/README.txt "$d/data/README.txt"
+            cp README.md LICENSE "$d/"
+            (cd "$d" && zip -qr - .) > "dist/SmokeTrail-${V}-windows-${arch}-portable.zip"
+          done
+          ls -la dist/*.zip
+      - uses: actions/upload-artifact@v4
+        with: { name: dist, path: dist/ }
+
+  installer:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: dist, path: dist }
+      - name: build setup.exe
+        shell: cmd
+        run: |
+          iscc packaging\smoketrail.iss /DAppVersion=${{ needs.build.outputs.version }} /DSourceExe=..\dist\smoketrail-windows-amd64.exe
+      - uses: actions/upload-artifact@v4
+        with: { name: installer, path: dist/*setup.exe }
+
+  publish:
+    needs: [build, installer]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: art }
+      - run: |
+          mkdir -p out && find art -type f \( -name '*.exe' -o -name '*.zip' -o -name 'smoketrail-*' \) -exec cp {} out/ \;
+          cd out && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          generate_release_notes: true
