@@ -1,0 +1,42 @@
+# /etc/systemd/system/smoketrail.service
+#
+#   sudo cp deploy/smoketrail.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now smoketrail
+#
+# ICMP without root needs one of:
+#   sysctl net.ipv4.ping_group_range = 0 2147483647   (preferred; see README)
+#   setcap cap_net_raw+ep /usr/local/bin/smoketrail
+
+[Unit]
+Description=SmokeTrail — link quality monitoring
+Documentation=https://github.com/githubflyideas/SmokeTrail
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/smoketrail run --data /var/lib/smoketrail
+Restart=on-failure
+RestartSec=5
+
+# The Windows service runs as LocalService; this is the same idea. SmokeTrail needs
+# to open a socket, send ICMP and write one directory — nothing else.
+DynamicUser=yes
+StateDirectory=smoketrail
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_NETLINK
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+
+[Install]
+WantedBy=multi-user.target

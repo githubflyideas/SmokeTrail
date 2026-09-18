@@ -1,0 +1,15 @@
+# Sandbox-only module wiring; never part of a build anyone else runs.
+go.work
+go.work.sum
+
+# Build output
+/smoketrail
+/SmokeTrail
+/smoketrail.exe
+/dist/
+
+# A portable install writes here.
+/data/
+*.db
+*.db-wal
+*.db-shm
