@@ -47,6 +47,11 @@ dt{color:var(--dim)} dd{margin:0;font-family:ui-monospace,Consolas,monospace;wor
  padding:5px 8px;font:inherit;font-size:12px;cursor:pointer}
 .lang-picker:focus{outline:none;border-color:#3fb950}
 .lang-picker option{background:#161b22;color:#e6edf3}
+  .brandrow { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:10px 0 6px; }
+  .brandprev { width:44px; height:44px; border:1px solid var(--line); border-radius:8px;
+               display:flex; align-items:center; justify-content:center; overflow:hidden;
+               background:var(--panel); flex:none; }
+  .brandprev img { max-width:100%; max-height:100%; }
 </style></head><body>
 <header>
   <div class="mark">pingping</div>
@@ -94,6 +99,19 @@ dt{color:var(--dim)} dd{margin:0;font-family:ui-monospace,Consolas,monospace;wor
       <button id="portGo" data-i18n="settings.save">Save</button>
     </div>
     <div class="msg" id="portMsg"></div>
+  </section>
+
+  <section id="secBrand" class="hide">
+    <h2 data-i18n="settings.brandTitle">Console logo</h2>
+    <p class="sub" data-i18n="settings.brandSub">Replace the mark in the header with your own. It is stored in the database, so a copy of the data carries the brand with it.</p>
+    <div class="brandrow">
+      <span class="brandprev" id="brandPrev"></span>
+      <input type="file" id="brandFile" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
+      <button id="brandPick" data-i18n="settings.brandChoose">Choose an image</button>
+      <button id="brandClear" class="ghost hide" data-i18n="settings.brandReset">Use the default mark</button>
+    </div>
+    <p class="sub" data-i18n="settings.brandFormats">PNG, JPEG, GIF or WebP, up to 256 KB. SVG is not accepted because it can carry script.</p>
+    <p class="msg" id="brandMsg"></p>
   </section>
 
   <section>
@@ -249,4 +267,58 @@ $('signout').onclick = async e => {
 
 document.addEventListener('i18n', () => { if (me && me.role === 'admin') loadUsers(); });
 window.i18nReady.then(load);
-</script></body></html>
+</script><script>
+// The logo is admin-only, like everything else that changes what other people
+// see. The section stays hidden for a viewer rather than 403-ing on click.
+(function () {
+  const $ = id => document.getElementById(id);
+  const prev = $('brandPrev'), msg = $('brandMsg'), clear = $('brandClear');
+
+  function draw(has) {
+    prev.innerHTML = '';
+    if (has) {
+      const img = document.createElement('img');
+      img.src = '/api/brand/logo?t=' + Date.now();   // defeat the cache after an upload
+      img.alt = '';
+      prev.append(img);
+      clear.classList.remove('hide');
+    } else {
+      prev.textContent = '—';
+      clear.classList.add('hide');
+    }
+  }
+
+  fetch('/api/me').then(r => r.ok ? r.json() : null).then(me => {
+    if (!me || me.role !== 'admin') return;
+    $('secBrand').classList.remove('hide');
+    draw(!!me.has_logo);
+  }).catch(() => {});
+
+  $('brandPick').onclick = () => $('brandFile').click();
+  $('brandFile').onchange = async () => {
+    const f = $('brandFile').files[0];
+    if (!f) return;
+    msg.textContent = '';
+    // Raw bytes, not multipart: there is one field and the server sniffs the
+    // content anyway, so a form encoding would only add a parser. The header is
+    // declared rather than left to the File object, because every write on these
+    // pages declares one — a test enforces it, after a missing Content-Type once
+    // made every login look like a wrong password.
+    const res = await fetch('/api/brand/logo', {
+      method: 'POST',
+      headers: { 'Content-Type': f.type || 'application/octet-stream' },
+      body: f,
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) { msg.textContent = d.error || ('HTTP ' + res.status); return; }
+    $('brandFile').value = '';
+    draw(true);
+  };
+
+  clear.onclick = async () => {
+    const res = await fetch('/api/brand/logo', { method: 'DELETE' });
+    if (res.ok) { draw(false); msg.textContent = ''; }
+  };
+})();
+</script>
+</body></html>

@@ -105,6 +105,8 @@
      turns up. It replaced a blinking dot that suggested live status while
      actually being on a fixed timer. */
   .brand-ic { width:30px; height:30px; flex:none; }
+  img.brand-ic { object-fit:contain; }
+  .hide { display:none; }
   .rng { display:flex; background:var(--panel); border:1px solid var(--line); border-radius:4px; overflow:hidden; }
   .rng span { color:var(--dim); font-family:var(--sans); font-size:var(--fs-micro);
               font-weight:600; padding:9px 10px 0 12px; letter-spacing:.14em; }
@@ -185,23 +187,29 @@ body.light input[type="datetime-local"]{
   color-scheme:light;background:#fff;color:#111;border-color:#d0d7de;
 }
 
-.lang-picker{background:#161b22;color:#8b949e;border:1px solid #272e38;border-radius:6px;
+/* Theme variables, not the dark palette written out. This used to sit in the
+   footer where only the dark theme ever saw it; in the header it is dark-on-light
+   in three of the five themes. */
+.lang-picker{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;
  padding:5px 8px;font:inherit;font-size:12px;cursor:pointer}
-.lang-picker:focus{outline:none;border-color:#3fb950}
-.lang-picker option{background:#161b22;color:#e6edf3}
+.lang-picker:focus{outline:none;border-color:var(--phos)}
+.lang-picker option{background:var(--panel);color:var(--ink)}
 </style>
 </head>
 <body>
 <header>
   <div class="mark">
-    <!-- Same geometry as packaging/icon/make_icon.py, drawn inline so it takes
-         each theme's colours instead of carrying baked-in ones: the trace is
-         --phos and the second spike is --alert, exactly as in the chart below. -->
-    <svg class="brand-ic" viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="3.8"  y="21.25" width="24.4" height="2.3"  rx="1.15" fill="var(--phos)"/>
-      <rect x="10.4" y="12.8"  width="2.3"  height="10.75" rx="1.15" fill="var(--phos)"/>
-      <rect x="19.0" y="8.3"   width="2.3"  height="15.25" rx="1.15" fill="var(--alert)"/>
-    </svg>pingping</div>
+    <!-- The same silhouette packaging/icon/make_icon.py draws, generated from
+         the same curve, so the letterhead and the .exe cannot drift apart. It is
+         stroked rather than filled: a filled polygon of this shape is 2 KB of
+         path data, a stroke is 250 bytes and smooths better at this size.
+         Colours come from the theme, so the mark reads correctly on the light
+         palettes instead of carrying a fixed phosphor green. -->
+    <svg class="brand-ic" viewBox="0 0 32 32" aria-hidden="true"
+         fill="none" stroke-width="5.44" stroke-linecap="round" stroke-linejoin="round">
+      <path stroke="var(--phos)" d="M2.6,21.8 3.6,21.8 4.6,21.8 5.7,21.8 6.7,21.8 7.7,21.8 8.8,21.8 9.8,21.8 10.8,21.7 11.9,21.6 12.9,20.5 13.9,17.0 15.0,11.0 16.0,7.7 17.0,11.0 18.1,17.0 19.1,20.5 20.1,21.6 21.2,21.7 22.2,21.8 23.2,21.8 24.3,21.8 25.3,21.8 26.3,21.8 27.4,21.8 28.4,21.8 29.4,21.8"/>
+      <path stroke="var(--alert)" d="M13.3,19.5 13.8,17.8 14.2,15.5 14.7,12.8 15.1,10.3 15.6,8.4 16.0,7.7 16.4,8.4 16.9,10.3 17.3,12.8 17.8,15.5 18.2,17.8 18.7,19.5"/>
+    </svg><img class="brand-ic hide" id="brandLogo" alt=""><span id="brandName">pingping</span></div>
   <div class="tag" data-i18n="console.tagline">One binary. One graph. One metric: Latency.</div>
   <div class="hdr-actions">
     <button class="pill" id="editBtn" title="add, edit or remove targets" style="display:none" data-i18n="console.targets">✎ targets</button>
@@ -556,7 +564,15 @@ fetch('/api/version').then(r => r.json()).then(d => {
   // The server refuses target writes from a viewer; hiding the button keeps the
   // UI honest about it rather than letting someone discover the rule by 403.
   fetch('/api/me').then(r => r.ok ? r.json() : null).then(me => {
-    if (me && me.role === 'admin' && !me.readonly) $('editBtn').style.display = '';
+    if (me && me.role === 'admin') $('editBtn').style.display = '';
+    // The built-in mark is drawn first and only replaced once the custom image
+    // has actually decoded, so a missing or broken logo leaves the header intact
+    // rather than blank.
+    if (me && me.has_logo) {
+      const img = $('brandLogo'), svg = document.querySelector('svg.brand-ic');
+      img.onload = () => { img.classList.remove('hide'); if (svg) svg.classList.add('hide'); };
+      img.src = '/api/brand/logo';
+    }
   }).catch(() => {});
   const el = $('ver');
   if (el && d.version) el.textContent = 'v' + String(d.version).replace(/^v/, '');

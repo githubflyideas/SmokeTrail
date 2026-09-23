@@ -1091,6 +1091,66 @@
       "de": "Eine Binärdatei. Ein Diagramm. Eine Metrik: Latenz.",
       "ja": "ひとつのバイナリ。ひとつのグラフ。ひとつの指標：レイテンシ。",
       "ko": "하나의 실행 파일. 하나의 그래프. 하나의 지표: 지연 시간."
+    },
+    "settings.brandTitle": {
+      "en": "Console logo",
+      "zh": "控制台标识",
+      "es": "Logo de la consola",
+      "fr": "Logo de la console",
+      "pt": "Logotipo do console",
+      "ru": "Логотип консоли",
+      "id": "Logo konsol",
+      "de": "Konsolen-Logo",
+      "ja": "コンソールのロゴ",
+      "ko": "콘솔 로고"
+    },
+    "settings.brandSub": {
+      "en": "Replace the mark in the header with your own. It is stored in the database, so a copy of the data carries the brand with it.",
+      "zh": "把页眉上的标识换成你自己的。它存在数据库里，所以复制数据就带着这套品牌走。",
+      "es": "Sustituye la marca de la cabecera por la tuya. Se guarda en la base de datos, así que una copia de los datos lleva la marca consigo.",
+      "fr": "Remplacez la marque de l'en-tête par la vôtre. Elle est stockée dans la base, donc une copie des données emporte la marque avec elle.",
+      "pt": "Substitua a marca do cabeçalho pela sua. Fica guardada no banco de dados, então uma cópia dos dados leva a marca junto.",
+      "ru": "Замените знак в шапке своим. Он хранится в базе, поэтому копия данных несёт оформление с собой.",
+      "id": "Ganti logo di header dengan milik Anda. Disimpan di basis data, jadi salinan data membawa merek itu serta.",
+      "de": "Ersetzen Sie das Zeichen in der Kopfzeile durch Ihr eigenes. Es liegt in der Datenbank, eine Kopie der Daten nimmt die Marke also mit.",
+      "ja": "ヘッダーのマークを自分のものに置き換えます。データベースに保存されるため、データを複製すればブランドもついていきます。",
+      "ko": "헤더의 마크를 직접 만든 것으로 교체합니다. 데이터베이스에 저장되므로 데이터를 복사하면 브랜드도 함께 갑니다."
+    },
+    "settings.brandChoose": {
+      "en": "Choose an image",
+      "zh": "选择图片",
+      "es": "Elegir imagen",
+      "fr": "Choisir une image",
+      "pt": "Escolher imagem",
+      "ru": "Выбрать изображение",
+      "id": "Pilih gambar",
+      "de": "Bild wählen",
+      "ja": "画像を選択",
+      "ko": "이미지 선택"
+    },
+    "settings.brandReset": {
+      "en": "Use the default mark",
+      "zh": "恢复默认标识",
+      "es": "Usar la marca predeterminada",
+      "fr": "Rétablir la marque par défaut",
+      "pt": "Usar a marca padrão",
+      "ru": "Вернуть знак по умолчанию",
+      "id": "Pakai logo bawaan",
+      "de": "Standardzeichen verwenden",
+      "ja": "既定のマークに戻す",
+      "ko": "기본 마크 사용"
+    },
+    "settings.brandFormats": {
+      "en": "PNG, JPEG, GIF or WebP, up to 256 KB. SVG is not accepted because it can carry script.",
+      "zh": "PNG、JPEG、GIF 或 WebP，最大 256 KB。不接受 SVG，因为它能携带脚本。",
+      "es": "PNG, JPEG, GIF o WebP, hasta 256 KB. No se acepta SVG porque puede contener scripts.",
+      "fr": "PNG, JPEG, GIF ou WebP, jusqu'à 256 Ko. Le SVG est refusé car il peut contenir du script.",
+      "pt": "PNG, JPEG, GIF ou WebP, até 256 KB. SVG não é aceito porque pode conter script.",
+      "ru": "PNG, JPEG, GIF или WebP, до 256 КБ. SVG не принимается: он может содержать скрипт.",
+      "id": "PNG, JPEG, GIF atau WebP, maksimal 256 KB. SVG tidak diterima karena bisa memuat skrip.",
+      "de": "PNG, JPEG, GIF oder WebP, bis 256 KB. SVG wird nicht angenommen, da es Skript enthalten kann.",
+      "ja": "PNG / JPEG / GIF / WebP、最大 256 KB。SVG はスクリプトを含められるため受け付けません。",
+      "ko": "PNG, JPEG, GIF 또는 WebP, 최대 256 KB. SVG는 스크립트를 담을 수 있어 받지 않습니다."
     }
   }
 }

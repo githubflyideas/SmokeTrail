@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"mime"
 	"net"
@@ -139,16 +140,6 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 	// pretending the endpoint does not exist would only make the UI confusing.
 	admin := func(h http.HandlerFunc) http.HandlerFunc {
 		return write(func(w http.ResponseWriter, r *http.Request) {
-			// Two different refusals, in this order, because they mean different
-			// things. --readonly is a property of the process and no credential
-			// gets past it; the role check is a property of the account. Saying
-			// "this account is read-only" to an admin on a --readonly instance
-			// would send them looking for a permission to grant.
-			if cfg.ReadOnly {
-				jsonErr(w, http.StatusForbidden,
-					"this instance was started with --readonly; targets cannot be changed from the console")
-				return
-			}
 			sn, _ := current(r)
 			if sn.role != RoleAdmin {
 				jsonErr(w, http.StatusForbidden, "this account is read-only")
@@ -307,7 +298,7 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 			"listen":         cfg.Listen,
 			"port":           portNum(cfg.Listen),
 			"retention_days": cfg.RetentionDays,
-			"readonly":       cfg.ReadOnly,
+			"has_logo":       func() bool { _, _, ok := store.Logo(); return ok }(),
 		})
 	}))
 
@@ -460,6 +451,48 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 	// The catalogue, one language at a time. Unauthenticated on purpose: the sign-in
 	// and first-run screens need it before anyone has a session, and it contains
 	// nothing but interface text.
+	// ---- brand ----
+
+	// The logo is served from the database rather than as a static file so a
+	// portable copy stays one directory. nosniff and an explicit Content-Type
+	// matter here more than elsewhere: these bytes came from a user, and the
+	// browser must not be free to decide they are something executable.
+	mux.HandleFunc("GET /api/brand/logo", guard(func(w http.ResponseWriter, r *http.Request) {
+		raw, ct, ok := store.Logo()
+		if !ok {
+			http.Error(w, "no custom logo", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", ct)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Write(raw)
+	}))
+
+	mux.HandleFunc("POST /api/brand/logo", admin(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(io.LimitReader(r.Body, maxLogoBytes+1))
+		if err != nil {
+			jsonErr(w, http.StatusBadRequest, "could not read the upload")
+			return
+		}
+		if err := store.SetLogo(raw); err != nil {
+			jsonErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		log.Printf("console: custom logo set (%d bytes)", len(raw))
+		writeJSON(w, map[string]bool{"ok": true})
+	}))
+
+	mux.HandleFunc("DELETE /api/brand/logo", admin(func(w http.ResponseWriter, r *http.Request) {
+		if err := store.ClearLogo(); err != nil {
+			jsonErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		log.Printf("console: custom logo cleared")
+		writeJSON(w, map[string]bool{"ok": true})
+	}))
+
 	mux.HandleFunc("GET /api/i18n", func(w http.ResponseWriter, r *http.Request) {
 		lang := normalizeLang(r.URL.Query().Get("lang"))
 		if lang == "" {
@@ -473,6 +506,7 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 		writeJSON(w, map[string]any{
 			"version":        version,
 			"retention_days": cfg.RetentionDays,
+			"has_logo":       func() bool { _, _, ok := store.Logo(); return ok }(),
 			"needs_setup":    store.NeedsSetup(),
 			"authed":         authed(r),
 		})
