@@ -182,4 +182,4 @@ The probe engine, storage tiering and chart are [fogping](https://github.com/git
 rewritten here for Windows. Inspired by SmokePing; not affiliated with it, and no
 code is shared with it.
 
-MIT.
+Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

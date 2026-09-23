@@ -1,0 +1,26 @@
+SmokeTrail
+Copyright 2026 githubflyideas
+
+This product includes software developed at githubflyideas
+(https://github.com/githubflyideas/SmokeTrail).
+
+Licensed under the Apache License, Version 2.0. See the LICENSE file.
+
+--------------------------------------------------------------------------------
+Third-party components
+--------------------------------------------------------------------------------
+
+golang.org/x/sys
+  Copyright 2009 The Go Authors. BSD 3-Clause License.
+
+modernc.org/sqlite  (and its modernc.org dependencies)
+  Copyright 2017 The Sqlite Authors. BSD 3-Clause License.
+  A pure-Go translation of SQLite, which is itself in the public domain.
+
+Apache ECharts  (static/echarts.min.js)
+  Copyright The Apache Software Foundation. Apache License 2.0.
+
+--------------------------------------------------------------------------------
+
+SmokeTrail is inspired by SmokePing (Tobias Oetiker, Niko Tyni) but shares no
+code with it and is not affiliated with that project.

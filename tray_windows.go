@@ -53,18 +53,20 @@ const (
 	wmTrayIcon = 0x0400 + 1 // WM_APP + 1
 
 	idOpenConsole  = 1001
-	idHideIcon     = 1002
 	idStopService  = 1003
 	idStartService = 1004
 	idRestart      = 1005
 	idDataFolder   = 1006
-	idEventLog     = 1007
 	idExit         = 1008
 	idSettings     = 1009
 	idPassword     = 1010
 	idSelftest     = 1011
 	idUpdates      = 1012
 	idAbout        = 1013
+
+	// The language submenu numbers itself from here, one per entry in langOrder,
+	// with the automatic choice first.
+	idLangBase = 1100
 
 	trayPollInterval = 10 * time.Second
 )
@@ -199,6 +201,18 @@ type tray struct {
 
 	mu     sync.Mutex
 	status health // what the last poll saw, shown in the menu
+	m      msgs   // interface strings for the language in force
+}
+
+// setLang re-reads the catalogue and refreshes anything already on screen.
+func (t *tray) setLang(tag string) {
+	storeLang(tag)
+	t.mu.Lock()
+	t.m = messages(preferredLang())
+	st := t.status
+	t.mu.Unlock()
+	t.tip = "" // force the tooltip to be rewritten in the new language
+	t.setState(!st.reachable || st.Down > 0, "SmokeTrail - "+t.line(st))
 }
 
 // health is the console's own view, fetched from the loopback-only endpoint. The
@@ -213,19 +227,27 @@ type health struct {
 	reachable  bool
 }
 
-func (h health) line() string {
+// line describes the current state in the language in force.
+func (t *tray) line(h health) string {
+	m := t.msgsNow()
 	switch {
 	case !h.reachable:
-		return "Service not responding"
+		return m.NotResponding
 	case h.NeedsSetup:
-		return "Set the admin password"
+		return m.NeedsSetup
 	case h.Targets == 0:
-		return "No targets yet"
+		return m.NoTargets
 	case h.Down == 0:
-		return fmt.Sprintf("%d targets, all up", h.Targets)
+		return fmt.Sprintf(m.AllUpFmt, h.Targets)
 	default:
-		return fmt.Sprintf("%d targets, %d DOWN", h.Targets, h.Down)
+		return fmt.Sprintf(m.SomeDownFmt, h.Targets, h.Down)
 	}
+}
+
+func (t *tray) msgsNow() msgs {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.m
 }
 
 // runTray owns the calling goroutine for the lifetime of the icon: a Win32 message
@@ -235,7 +257,8 @@ func runTray(ctx context.Context, consoleURL string, service bool, onExit func()
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	t := &tray{service: service, consoleU: consoleURL, onExit: onExit}
+	t := &tray{service: service, consoleU: consoleURL, onExit: onExit,
+		m: messages(preferredLang())}
 	var err error
 	if t.iconOK, err = loadEmbeddedIcon("packaging/icon/tray-ok.ico"); err != nil {
 		return err
@@ -254,7 +277,7 @@ func runTray(ctx context.Context, consoleURL string, service bool, onExit func()
 	}
 
 	t.cur = t.iconOK
-	t.tip = "SmokeTrail - starting"
+	t.tip = "SmokeTrail - " + t.msgsNow().Starting
 	// A Startup entry runs while Explorer is still coming up, so the first add
 	// routinely fails. Keep trying rather than exiting: an icon that appears a few
 	// seconds late is the difference between working and "it never shows up".
@@ -418,55 +441,74 @@ func (t *tray) showMenu() {
 		mfString    = 0x0
 		mfGrayed    = 0x1
 		mfDisabled  = 0x2
+		mfChecked   = 0x8
+		mfPopup     = 0x10
 		mfSeparator = 0x800
 		mfDefault   = 0x1000
 	)
-	add := func(flags, id uintptr, text string) {
-		procAppendMenu.Call(h, flags, id,
+	add := func(menu uintptr, flags, id uintptr, text string) {
+		procAppendMenu.Call(menu, flags, id,
 			uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(text))))
 	}
 
 	t.mu.Lock()
-	st := t.status
+	st, m := t.status, t.m
 	t.mu.Unlock()
 
 	// A status line at the top, greyed and inert. Windows tray menus commonly
-	// lead with one, and here it saves opening a browser to answer the only
-	// question most people have.
-	add(mfString|mfGrayed|mfDisabled, 0, "SmokeTrail - "+st.line())
-	add(mfSeparator, 0, "")
-	add(mfString|mfDefault, idOpenConsole, "Open console")
-	add(mfString, idSettings, "Settings, accounts and port...")
-	add(mfString, idPassword, "Change my password...")
+	// lead with one, and here it answers the only question most people have
+	// without them opening a browser.
+	add(h, mfString|mfGrayed|mfDisabled, 0, "SmokeTrail - "+t.line(st))
+	add(h, mfSeparator, 0, "")
+	add(h, mfString|mfDefault, idOpenConsole, m.OpenConsole)
+	add(h, mfString, idSettings, m.SettingsItem)
+	add(h, mfString, idPassword, m.ChangePassword)
 
-	add(mfSeparator, 0, "")
-	add(mfString, idDataFolder, "Open data folder")
-	add(mfString, idSelftest, "Run clock selftest...")
+	add(h, mfSeparator, 0, "")
+	add(h, mfString, idDataFolder, m.DataFolder)
+	add(h, mfString, idSelftest, m.Selftest)
 
 	if t.service {
-		add(mfSeparator, 0, "")
+		add(h, mfSeparator, 0, "")
 		if st.reachable {
-			// Restart is above stop because it is the common case: a port change
-			// in the console needs exactly this, and it repairs the firewall rule
-			// on the way through.
-			add(mfString, idRestart, "Restart service (applies a new port)")
-			add(mfString, idStopService, "Stop service")
+			// Restart sits above stop because it is the common case: a port
+			// change in the console needs exactly this.
+			add(h, mfString, idRestart, m.RestartService)
+			add(h, mfString, idStopService, m.StopService)
 		} else {
-			add(mfString, idStartService, "Start service")
+			add(h, mfString, idStartService, m.StartService)
 		}
-		add(mfString, idEventLog, "View event log")
 	}
 
-	add(mfSeparator, 0, "")
-	add(mfString, idUpdates, "Check for updates")
-	add(mfString, idAbout, "About SmokeTrail")
-	add(mfSeparator, 0, "")
-	if t.service {
-		// Two separate, explicitly worded actions. "Exit" would be a lie here:
-		// the service keeps probing whatever this process does.
-		add(mfString, idHideIcon, "Hide this icon until next sign-in")
-	} else {
-		add(mfString, idExit, "Exit SmokeTrail")
+	// Language. Following Windows is the default, but a server installed in a
+	// language nobody on the team reads is common enough to need a way out.
+	if sub, _, _ := procCreatePopupMenu.Call(); sub != 0 {
+		cur := storedLang()
+		mark := func(tag string) uintptr {
+			if cur == tag {
+				return mfChecked
+			}
+			return 0
+		}
+		add(sub, mfString|mark(langAuto), idLangBase, m.LangAuto)
+		add(sub, mfSeparator, 0, "")
+		for i, tag := range langOrder {
+			add(sub, mfString|mark(tag), uintptr(idLangBase+1+i), langNames[tag])
+		}
+		add(h, mfSeparator, 0, "")
+		add(h, mfPopup, sub, m.LanguageItem)
+	}
+
+	add(h, mfSeparator, 0, "")
+	add(h, mfString, idUpdates, m.CheckUpdates)
+	add(h, mfString, idAbout, m.AboutItem)
+	if !t.service {
+		// Only portable mode gets a terminal action. Under a service, "exit"
+		// would be a lie — the service keeps probing whatever this process does
+		// — and an item that stops the icon without stopping the monitoring is
+		// the most predictable support complaint there is. So there is none.
+		add(h, mfSeparator, 0, "")
+		add(h, mfString, idExit, m.ExitItem)
 	}
 
 	var p point
@@ -481,17 +523,21 @@ func (t *tray) showMenu() {
 }
 
 func (t *tray) command(id uint32) {
+	// The language submenu is a contiguous block rather than named constants,
+	// because langOrder decides how many entries there are.
+	if id >= idLangBase && int(id) <= idLangBase+len(langOrder) {
+		tag := langAuto
+		if id > idLangBase {
+			tag = langOrder[id-idLangBase-1]
+		}
+		t.setLang(tag)
+		return
+	}
 	switch id {
 	case idOpenConsole:
 		t.openConsole()
-	case idHideIcon:
-		procPostQuitMessage.Call(0)
 	case idDataFolder:
 		t.open(dataDirForDisplay())
-	case idEventLog:
-		// The service's own log, filtered to us. Opening Event Viewer at the
-		// right place beats telling somebody to navigate to it.
-		runElevated("cmd.exe", "/c start "+`""`+" eventvwr.msc")
 	case idStartService:
 		runElevated("cmd.exe", "/c net start "+svcName)
 	case idStopService:
@@ -518,28 +564,23 @@ func (t *tray) command(id uint32) {
 		}
 	case idAbout:
 		t.mu.Lock()
-		st := t.status
+		st, m := t.status, t.m
 		t.mu.Unlock()
 		v := st.Version
 		if v == "" {
 			v = version
 		}
-		body := "SmokeTrail " + v + "\n\n" +
-			"Latency distribution and packet loss, kept as a distribution\n" +
-			"rather than an average.\n\n" +
-			"Console:  " + t.consoleU + "\n" +
-			"Status:   " + st.line() + "\n" +
-			"Data:     " + dataDirForDisplay() + "\n\n" +
-			homepage + "\n\nMIT licensed."
+		body := "SmokeTrail " + v + "\n\n" + m.AboutTagline + "\n\n" +
+			m.AboutConsole + ":  " + t.consoleU + "\n" +
+			m.AboutStatus + ":  " + t.line(st) + "\n" +
+			m.AboutData + ":  " + dataDirForDisplay() + "\n\n" +
+			homepage + "\n\n" + m.AboutLicense
+		// MessageBox blocks, and blocking here would freeze the message loop that
+		// has to keep serving the icon.
 		go procMessageBox.Call(0,
 			uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(body))),
-			uintptr(unsafe.Pointer(windows.StringToUTF16Ptr("About SmokeTrail"))),
+			uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(m.AboutTitle))),
 			0x40 /* MB_ICONINFORMATION */)
-	case idExit:
-		if t.onExit != nil {
-			t.onExit()
-		}
-		procPostQuitMessage.Call(0)
 	}
 }
 
@@ -599,24 +640,22 @@ func (t *tray) watch(ctx context.Context) {
 		// Notify on transitions only. A balloon every poll would be noise, and
 		// one at startup would fire on every sign-in.
 		if !first {
+			m := t.msgsNow()
 			switch {
 			case prev.reachable && !st.reachable:
-				t.balloon("SmokeTrail stopped responding",
-					"The service is not answering on "+t.consoleU+".", true)
+				t.balloon(m.StoppedTitle, fmt.Sprintf(m.StoppedBodyFmt, t.consoleU), true)
 			case !prev.reachable && st.reachable:
-				t.balloon("SmokeTrail is back", st.line(), false)
+				t.balloon(m.BackTitle, t.line(st), false)
 			case st.reachable && st.Down > prev.Down:
-				t.balloon("Link down",
-					fmt.Sprintf("%d of %d targets are not responding.", st.Down, st.Targets), true)
+				t.balloon(m.DownTitle, fmt.Sprintf(m.DownBodyFmt, st.Down, st.Targets), true)
 			case st.reachable && prev.Down > 0 && st.Down == 0:
-				t.balloon("Links recovered",
-					fmt.Sprintf("All %d targets are responding again.", st.Targets), false)
+				t.balloon(m.UpTitle, fmt.Sprintf(m.UpBodyFmt, st.Targets), false)
 			}
 		}
 		prev, first = st, false
 		// Red for anything an operator would want to act on: a target down, or a
 		// service that has stopped answering.
-		t.setState(!st.reachable || st.Down > 0, "SmokeTrail - "+st.line())
+		t.setState(!st.reachable || st.Down > 0, "SmokeTrail - "+t.line(st))
 		select {
 		case <-ctx.Done():
 			return

@@ -47,7 +47,7 @@ VIAddVersionKey "CompanyName"     "${PUBLISHER}"
 VIAddVersionKey "FileDescription" "${APPNAME} installer"
 VIAddVersionKey "FileVersion"     "${VERSION}.0"
 VIAddVersionKey "ProductVersion"  "${VERSION}.0"
-VIAddVersionKey "LegalCopyright"  "Copyright (c) 2026 ${PUBLISHER}. MIT licensed."
+VIAddVersionKey "LegalCopyright"  "Copyright 2026 ${PUBLISHER}. Apache License 2.0."
 
 !include "MUI2.nsh"
 !include "nsDialogs.nsh"
