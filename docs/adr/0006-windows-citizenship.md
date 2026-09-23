@@ -66,6 +66,11 @@ renumbered, because someone's alert rule depends on them.
 **`SmokeTrail.exe`**, matching the product name shown in Services.msc, Task
 Manager and the file's own version resource. Unix artifacts stay lowercase.
 
+**NSIS, not Inno Setup**, for the installer. Inno has the nicer default wizard,
+but `makensis` runs on Linux, so binaries and installer come out of one ubuntu job
+with no Windows runner anywhere in the release path. That is the same principle as
+ADR 1 — one toolchain, no per-platform build machines — applied one layer up.
+
 ## Consequences
 
 - A plain `go build` now depends on a committed binary (`resource_windows.syso`,
