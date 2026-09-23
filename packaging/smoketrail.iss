@@ -8,13 +8,13 @@
 ; It also does NOT create a data directory beside the .exe — that absence is what
 ; makes an installed copy use %ProgramData% instead of portable mode. See ADR 5.
 ;
-;   iscc packaging\smoketrail.iss /DAppVersion=0.1.0 /DSourceExe=..\dist\smoketrail.exe
+;   iscc packaging\smoketrail.iss /DAppVersion=0.1.0 /DSourceExe=..\dist\SmokeTrail-windows-amd64.exe
 
 #ifndef AppVersion
   #define AppVersion "0.0.0-dev"
 #endif
 #ifndef SourceExe
-  #define SourceExe "..\dist\smoketrail-windows-amd64.exe"
+  #define SourceExe "..\dist\SmokeTrail-windows-amd64.exe"
 #endif
 
 [Setup]
@@ -27,7 +27,11 @@ AppSupportURL=https://github.com/githubflyideas/SmokeTrail/issues
 DefaultDirName={autopf}\SmokeTrail
 DefaultGroupName=SmokeTrail
 UninstallDisplayName=SmokeTrail
-UninstallDisplayIcon={app}\smoketrail.exe
+UninstallDisplayIcon={app}\SmokeTrail.exe
+SetupIconFile=icon\SmokeTrail.ico
+VersionInfoVersion={#AppVersion}
+VersionInfoProductName=SmokeTrail
+VersionInfoCompany=githubflyideas
 OutputDir=..\dist
 OutputBaseFilename=SmokeTrail-{#AppVersion}-setup
 Compression=lzma2/max
@@ -46,7 +50,7 @@ Name: "ja"; MessagesFile: "compiler:Languages\Japanese.isl"
 Name: "zh"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 
 [Files]
-Source: "{#SourceExe}"; DestName: "smoketrail.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourceExe}"; DestName: "SmokeTrail.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md";  DestDir: "{app}"; Flags: ignoreversion isreadme
 
 [Icons]
@@ -56,7 +60,7 @@ Name: "{group}\Uninstall SmokeTrail"; Filename: "{uninstallexe}"
 [Run]
 ; The service registration itself. Failure is surfaced rather than swallowed: an
 ; install that silently left no service behind is the worst possible outcome.
-Filename: "{app}\smoketrail.exe"; Parameters: "install --port {code:GetPort}"; \
+Filename: "{app}\SmokeTrail.exe"; Parameters: "install --port {code:GetPort}"; \
   StatusMsg: "Registering the SmokeTrail service..."; Flags: runhidden waituntilterminated
 
 ; First run has no password yet, so sending the operator to the console straight
@@ -67,7 +71,7 @@ Filename: "http://localhost:{code:GetPort}/"; \
   Flags: postinstall shellexec nowait
 
 [UninstallRun]
-Filename: "{app}\smoketrail.exe"; Parameters: "uninstall"; \
+Filename: "{app}\SmokeTrail.exe"; Parameters: "uninstall"; \
   RunOnceId: "RemoveService"; Flags: runhidden waituntilterminated
 
 [Code]

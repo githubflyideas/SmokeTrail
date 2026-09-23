@@ -30,17 +30,25 @@ jobs:
 
       # One `go build` per target, no toolchain, no container. If this ever needs
       # more than this, ADR 1 has been undone.
+      - name: stamp the Windows resource (version, icon, manifest)
+        run: |
+          go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest
+          PATH="$(go env GOPATH)/bin:$PATH" packaging/gen-resource.sh "${{ steps.v.outputs.version || inputs.version }}"
+          git diff --stat -- resource_windows.syso || true
+
       - name: cross-build
         env:
           V: ${{ steps.v.outputs.version || inputs.version }}
         run: |
           mkdir -p dist
           for t in windows/amd64 windows/386 windows/arm64 linux/amd64 linux/arm64 darwin/arm64; do
-            os=${t%/*}; arch=${t#*/}; ext=""
-            [ "$os" = windows ] && ext=.exe
+            os=${t%/*}; arch=${t#*/}
+            # Windows binaries are PascalCase, matching the product name shown in
+            # Services.msc, Task Manager and the file's own version resource.
+            name="smoketrail-${os}-${arch}"
+            [ "$os" = windows ] && name="SmokeTrail-${os}-${arch}.exe"
             CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath \
-              -ldflags "-s -w -X main.version=v${V}" \
-              -o "dist/smoketrail-${os}-${arch}${ext}" .
+              -ldflags "-s -w -X main.version=v${V}" -o "dist/${name}" .
           done
           ls -la dist/
 
@@ -53,7 +61,7 @@ jobs:
           for arch in amd64 arm64; do
             d=$(mktemp -d)
             mkdir -p "$d/data"
-            cp "dist/smoketrail-windows-${arch}.exe" "$d/smoketrail.exe"
+            cp "dist/SmokeTrail-windows-${arch}.exe" "$d/SmokeTrail.exe"
             cp packaging/portable/README.txt "$d/data/README.txt"
             cp README.md LICENSE "$d/"
             (cd "$d" && zip -qr - .) > "dist/SmokeTrail-${V}-windows-${arch}-portable.zip"
@@ -72,7 +80,7 @@ jobs:
       - name: build setup.exe
         shell: cmd
         run: |
-          iscc packaging\smoketrail.iss /DAppVersion=${{ needs.build.outputs.version }} /DSourceExe=..\dist\smoketrail-windows-amd64.exe
+          iscc packaging\smoketrail.iss /DAppVersion=${{ needs.build.outputs.version }} /DSourceExe=..\dist\SmokeTrail-windows-amd64.exe
       - uses: actions/upload-artifact@v4
         with: { name: installer, path: dist/*setup.exe }
 
@@ -84,7 +92,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with: { path: art }
       - run: |
-          mkdir -p out && find art -type f \( -name '*.exe' -o -name '*.zip' -o -name 'smoketrail-*' \) -exec cp {} out/ \;
+          mkdir -p out && find art -type f \( -name '*.exe' -o -name '*.zip' -o -name 'smoketrail-*' -o -name 'SmokeTrail-*' \) -exec cp {} out/ \;
           cd out && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
         with:

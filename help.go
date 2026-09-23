@@ -15,7 +15,7 @@ const helpCommon = `SmokeTrail {{VERSION}} — latency distribution and packet l
   of a link's behaviour — the spread, the outliers, the loss bursts — for {{DAYS}} days.
 
 USAGE
-  smoketrail [command] [flags]
+  {{EXE}} [command] [flags]
 
 COMMANDS
   (none) / run     run in the foreground; Ctrl-C stops it
@@ -39,7 +39,7 @@ FIRST RUN
   a credential does not belong there.
 
 SELFTEST
-    smoketrail selftest
+    {{EXE}} selftest
 
   SmokeTrail's premise is that sub-millisecond RTT differences are real and worth
   drawing. That is only true if the host's clock resolves finely enough and its
@@ -49,7 +49,7 @@ SELFTEST
 
 const helpWindows = `
 DATA
-  Portable   a "data" folder next to smoketrail.exe → everything stays there,
+  Portable   a "data" folder next to SmokeTrail.exe → everything stays there,
              nothing is written outside the folder, nothing touches the registry.
   Installed  no such folder → %ProgramData%\SmokeTrail
 
@@ -57,22 +57,32 @@ DATA
   the installer does not, so each build does the right thing with no flag.
 
 EXAMPLES
-    smoketrail.exe                          run it now, in this window
-    smoketrail.exe --port 9000              ...on another port
-    smoketrail.exe install                  run as a service from now on
-    smoketrail.exe install --port 9000 --days 90
-    smoketrail.exe uninstall                remove the service (data is kept)
+    SmokeTrail.exe                          run it now, in this window
+    SmokeTrail.exe --port 9000              ...on another port
+    SmokeTrail.exe install                  run as a service from now on
+    SmokeTrail.exe install --port 9000 --days 90
+    SmokeTrail.exe uninstall                remove the service (data is kept)
 
-  install needs an elevated prompt. It registers the service under
-  NT AUTHORITY\LocalService — a low-privilege account, which is possible because
-  SmokeTrail probes through the ICMP helper API rather than a raw socket. It also
-  opens the console port in the firewall and asks Defender to leave the database
-  alone.
+  install and uninstall need Administrator and will ask for it — accept the
+  prompt and the command finishes in the window you typed it in. Nothing else
+  prompts: running the console needs no privilege at all.
 
-  Service logs go to the Application event log:
+  What install sets up:
+    account    NT AUTHORITY\LocalService, with a per-service SID, so the
+               database is locked to this service and not to every other
+               LocalService process on the machine
+    start      automatic (delayed) — the network is up before we probe
+    recovery   restart after 5s, 20s, 60s; a monitor that stays down after a
+               crash draws a flat line that looks like a healthy link
+    firewall   the console port, on the private and domain profiles
+    Defender   an exclusion for the database, because real-time scanning shows
+               up as I/O jitter in the measurements
+
+  Service logs go to the Application event log, with event IDs you can filter on
+  (1xxx lifecycle, 2xxx degraded, 3xxx failed to start):
     Get-WinEvent -ProviderName SmokeTrail -MaxEvents 30
 
-  Upgrade: stop the service, replace smoketrail.exe, start it again.
+  Upgrade: stop the service, replace SmokeTrail.exe, start it again.
 `
 
 const helpUnix = `
@@ -103,10 +113,11 @@ func printHelp(w io.Writer) {
 	if runtime.GOOS == "windows" {
 		body = helpWindows
 	}
-	install, uninstall := "(Windows only)", "(Windows only)"
+	install, uninstall, exe := "(Windows only)", "(Windows only)", "./smoketrail"
 	if runtime.GOOS == "windows" {
-		install = "register as a Windows service and start it"
+		install = "register as a Windows service (asks for elevation)"
 		uninstall = "stop and remove the service (data is kept)"
+		exe = "SmokeTrail.exe"
 	}
 	t := helpCommon + body + helpFooter
 	r := strings.NewReplacer(
@@ -114,6 +125,7 @@ func printHelp(w io.Writer) {
 		"{{DAYS}}", "300",
 		"{{INSTALLDESC}}", install,
 		"{{UNINSTALLDESC}}", uninstall,
+		"{{EXE}}", exe,
 	)
 	io.WriteString(w, r.Replace(t))
 }

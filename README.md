@@ -9,8 +9,8 @@ daemon that watches a link for months and lets you go back and look.
 SmokeTrail is that, as a single .exe.
 
 ```
-smoketrail.exe            # run it now, console at http://localhost:8518
-smoketrail.exe install    # run it as a service from now on
+SmokeTrail.exe            # run it now, console at http://localhost:8518
+SmokeTrail.exe install    # run it as a service from now on  (asks for elevation)
 ```
 
 No .NET, no runtime, no DLL beside it, no Perl, no RRDtool, no WSL. One file.
@@ -43,19 +43,33 @@ what they meant.
 and deleting the folder is a complete uninstall. This is the form for a customer
 site where you cannot install software.
 
-**Service** — from an elevated prompt:
+**Service** — from any prompt; it asks for elevation itself.
 
 ```powershell
-smoketrail.exe install                      # or: install --port 9000 --days 90
-smoketrail.exe uninstall                    # data is kept
+SmokeTrail.exe install                      # or: install --port 9000 --days 90
+SmokeTrail.exe uninstall                    # data is kept
 ```
 
-Registers under `NT AUTHORITY\LocalService`, not LocalSystem. Data goes to
-`%ProgramData%\SmokeTrail`. Logs go to the Application event log:
+| | |
+|---|---|
+| account | `NT AUTHORITY\LocalService` with a per-service SID, so the database is locked to this service — not to every other LocalService process on the box |
+| start | automatic (delayed) |
+| recovery | restart after 5s, 20s, 60s |
+| data | `%ProgramData%\SmokeTrail` |
+| firewall | console port, private + domain profiles |
+| Defender | exclusion for the database |
+
+Logs go to the Application event log with filterable event IDs — 1xxx lifecycle,
+2xxx degraded, 3xxx failed to start:
 
 ```powershell
 Get-WinEvent -ProviderName SmokeTrail -MaxEvents 30
 ```
+
+The .exe carries a version resource, an icon and an application manifest, so
+Properties → Details reads properly and Windows applies no compatibility shims.
+The manifest asks for `asInvoker`: running the console never prompts, because it
+never needs privilege.
 
 **Linux** — same binary, same console. `deploy/smoketrail.service` is the unit
 file. ICMP without root needs one of:
@@ -74,7 +88,7 @@ credential does not belong there ([ADR 4](docs/adr/0004-auth.md)).
 ## Check your machine before you trust the graphs
 
 ```
-smoketrail.exe selftest
+SmokeTrail.exe selftest
 ```
 
 SmokeTrail claims sub-millisecond RTT differences are real and worth drawing. That
@@ -105,6 +119,7 @@ Five decisions, each written up because the reasoning is the interesting part:
 | [ADR 3](docs/adr/0003-windows-service.md) | LocalService, not LocalSystem |
 | [ADR 4](docs/adr/0004-auth.md) | First-run setup, not credentials on argv |
 | [ADR 5](docs/adr/0005-portable-and-installed.md) | One binary, two personalities, one directory decides |
+| [ADR 6](docs/adr/0006-windows-citizenship.md) | Version resource, icon, manifest, self-elevation, per-service SID, failure actions, event IDs |
 
 The short version of the interesting one: `ICMP_ECHO_REPLY.RoundTripTime` is a
 `ULONG` **of milliseconds**. For a tool that draws distributions, that quantises a

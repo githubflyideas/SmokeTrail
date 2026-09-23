@@ -22,6 +22,7 @@ type options struct {
 	days      int
 	data      string
 	port      int
+	logFile   string   // set only on the elevated re-launch; see elevate_windows.go
 	rawArgs   []string // as given, for install to replay
 }
 
@@ -64,17 +65,10 @@ func main() {
 		os.Exit(2)
 	}
 
-	switch verb {
-	case "install":
-		if err := installService(opt); err != nil {
-			log.Fatalf("install: %v", err)
-		}
-		return
-	case "uninstall":
-		if err := uninstallService(); err != nil {
-			log.Fatalf("uninstall: %v", err)
-		}
-		return
+	// install/uninstall need Administrator. On Windows this elevates itself rather
+	// than telling the operator to go and open a different window.
+	if verb == "install" || verb == "uninstall" {
+		os.Exit(runServiceVerb(verb, opt))
 	}
 
 	// Started by the service control manager rather than a person: hand over to the
@@ -100,6 +94,7 @@ func parseOptions(args []string) (options, error) {
 	days := fs.Int("days", 0, "days of history to keep (default 300)")
 	data := fs.String("data", "", "data directory (default: portable ./data beside the exe, else the system location)")
 	port := fs.Int("port", 0, "console port (default 8518)")
+	logFile := fs.String("log-file", "", "") // internal: the elevated child writes here
 	showVer := fs.Bool("version", false, "print version")
 
 	if err := fs.Parse(args); err != nil {
@@ -113,6 +108,7 @@ func parseOptions(args []string) (options, error) {
 		return opt, fmt.Errorf("unexpected argument %q", rest[0])
 	}
 	opt.localOnly, opt.days, opt.data, opt.port = *localOnly, *days, *data, *port
+	opt.logFile = *logFile
 	return opt, nil
 }
 

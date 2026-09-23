@@ -24,12 +24,12 @@ jobs:
     strategy:
       matrix:
         include:
-          - { goos: windows, goarch: amd64, ext: .exe }
-          - { goos: windows, goarch: '386', ext: .exe }
-          - { goos: windows, goarch: arm64, ext: .exe }
-          - { goos: linux,   goarch: amd64, ext: '' }
-          - { goos: linux,   goarch: arm64, ext: '' }
-          - { goos: darwin,  goarch: arm64, ext: '' }
+          - { goos: windows, goarch: amd64, name: SmokeTrail-windows-amd64.exe }
+          - { goos: windows, goarch: '386', name: SmokeTrail-windows-386.exe }
+          - { goos: windows, goarch: arm64, name: SmokeTrail-windows-arm64.exe }
+          - { goos: linux,   goarch: amd64, name: smoketrail-linux-amd64 }
+          - { goos: linux,   goarch: arm64, name: smoketrail-linux-arm64 }
+          - { goos: darwin,  goarch: arm64, name: smoketrail-darwin-arm64 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -42,7 +42,7 @@ jobs:
         run: |
           go build -trimpath \
             -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}-${GITHUB_SHA::7}" \
-            -o "dist/smoketrail-${GOOS}-${GOARCH}${{ matrix.ext }}" .
+            -o "dist/${{ matrix.name }}" .
           ls -la dist/
       - uses: actions/upload-artifact@v4
         with:

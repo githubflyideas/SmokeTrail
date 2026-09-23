@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <assemblyIdentity type="win32" name="githubflyideas.SmokeTrail"
+                    version="0.1.0.0" processorArchitecture="*"/>
+  <description>SmokeTrail — link quality monitoring</description>
+
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <!-- asInvoker, not requireAdministrator: running the console or the
+             portable copy must never raise a UAC prompt, and it does not need
+             to — the prober uses the ICMP helper API rather than a raw socket.
+             `install` and `uninstall` DO need elevation, so they re-launch
+             themselves with the runas verb; see elevate_windows.go. Declaring
+             requireAdministrator here would force a prompt on every ordinary
+             run instead. -->
+        <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compat.v1">
+    <application>
+      <!-- Declaring the supported releases stops Windows applying compatibility
+           shims and keeps version APIs truthful. -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/> <!-- 10 / 11 / Server 2016+ -->
+      <supportedOS Id="{1f676c76-80e1-4239-95bb-83d0f6d0da78}"/> <!-- 8.1 / Server 2012 R2 -->
+    </application>
+  </compatibility>
+
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <!-- The data directory can sit deep under a redirected ProgramData. -->
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+      <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
+    </windowsSettings>
+  </application>
+</assembly>
