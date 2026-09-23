@@ -122,22 +122,6 @@ FunctionEnd
 Section "pingping" SecMain
   SectionIn RO
 
-  ; This program was called SmokeTrail up to 0.3.2. An installed copy of that
-  ; version leaves behind a running service and a Startup tray shortcut, both
-  ; bound to the same console port — so without this, the new service fails to
-  ; bind and two notification icons appear. The database is NOT touched here:
-  ; the binary migrates it on first run (see migrate.go), which keeps one owner
-  ; for that decision instead of two.
-  DetailPrint "Checking for a previous SmokeTrail installation..."
-  nsExec::ExecToLog 'sc stop SmokeTrail'
-  nsExec::ExecToLog 'sc delete SmokeTrail'
-  nsExec::ExecToLog 'taskkill /F /IM SmokeTrail.exe'
-  Delete "$SMSTARTUP\SmokeTrail.lnk"
-  Delete "$SMPROGRAMS\SmokeTrail\SmokeTrail.lnk"
-  Delete "$SMPROGRAMS\SmokeTrail\Uninstall SmokeTrail.lnk"
-  RMDir  "$SMPROGRAMS\SmokeTrail"
-  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SmokeTrail"
-
   SetOutPath "$INSTDIR"
   File /oname=pingping.exe "${SRCEXE}"
   File "..\README.md"

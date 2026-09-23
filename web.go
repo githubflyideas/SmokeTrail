@@ -139,6 +139,16 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 	// pretending the endpoint does not exist would only make the UI confusing.
 	admin := func(h http.HandlerFunc) http.HandlerFunc {
 		return write(func(w http.ResponseWriter, r *http.Request) {
+			// Two different refusals, in this order, because they mean different
+			// things. --readonly is a property of the process and no credential
+			// gets past it; the role check is a property of the account. Saying
+			// "this account is read-only" to an admin on a --readonly instance
+			// would send them looking for a permission to grant.
+			if cfg.ReadOnly {
+				jsonErr(w, http.StatusForbidden,
+					"this instance was started with --readonly; targets cannot be changed from the console")
+				return
+			}
 			sn, _ := current(r)
 			if sn.role != RoleAdmin {
 				jsonErr(w, http.StatusForbidden, "this account is read-only")
@@ -297,6 +307,7 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 			"listen":         cfg.Listen,
 			"port":           portNum(cfg.Listen),
 			"retention_days": cfg.RetentionDays,
+			"readonly":       cfg.ReadOnly,
 		})
 	}))
 

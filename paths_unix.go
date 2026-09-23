@@ -6,8 +6,3 @@ package main
 // its history, and an in-place upgrade must not silently start a new database
 // somewhere else. A packaged service overrides it with --data.
 func systemDataDir() string { return "./data" }
-
-// legacySystemDirs is empty on Unix: every release under every name has kept its
-// data in ./data, so a rename only ever changed the filename, which
-// migrateLegacyData already looks for in the current directory.
-func legacySystemDirs() []string { return nil }

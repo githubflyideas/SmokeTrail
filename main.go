@@ -20,6 +20,7 @@ var version = "dev"
 // service's command line).
 type options struct {
 	localOnly bool
+	readOnly  bool
 	days      int
 	data      string
 	port      int
@@ -97,6 +98,7 @@ func parseOptions(args []string) (options, error) {
 	fs := flag.NewFlagSet("pingping", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	localOnly := fs.Bool("localhost", false, "bind 127.0.0.1 only")
+	readOnly := fs.Bool("readonly", false, "refuse target changes from the console, whoever is signed in")
 	days := fs.Int("days", 0, "days of history to keep (default 300)")
 	data := fs.String("data", "", "data directory (default: portable ./data beside the exe, else the system location)")
 	port := fs.Int("port", 0, "console port (default 8518)")
@@ -114,7 +116,7 @@ func parseOptions(args []string) (options, error) {
 		return opt, fmt.Errorf("unexpected argument %q", rest[0])
 	}
 	opt.localOnly, opt.days, opt.data, opt.port = *localOnly, *days, *data, *port
-	opt.logFile = *logFile
+	opt.readOnly, opt.logFile = *readOnly, *logFile
 	return opt, nil
 }
 
@@ -122,6 +124,7 @@ func parseOptions(args []string) (options, error) {
 // absent: they live in the database, set on first run through the console.
 func configure(opt options) (*Config, bool, error) {
 	cfg := defaultConfig()
+	cfg.ReadOnly = opt.readOnly
 	if opt.days > 0 {
 		cfg.RetentionDays = opt.days
 	}
@@ -136,16 +139,6 @@ func configure(opt options) (*Config, bool, error) {
 	}
 	dir, portable := resolveDataDir(opt.data)
 	cfg.DataDir = dir
-
-	// Before anything opens the database, give a fogping- or SmokeTrail-era
-	// install its history back. This is a no-op once pingping.db exists, which is
-	// every run but the first after an upgrade.
-	if from, err := migrateLegacyData(dir, portable); err != nil {
-		return cfg, portable, err
-	} else if from != "" {
-		log.Printf("migrated database from %s", from)
-	}
-
 	return cfg, portable, nil
 }
 

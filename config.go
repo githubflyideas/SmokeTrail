@@ -19,6 +19,18 @@ type Config struct {
 	Probe         ProbeCfg
 	HotDays       int // full samples kept this long
 	RetentionDays int // downsampled data kept this long
+
+	// ReadOnly comes from --readonly and from nowhere else. It is deliberately
+	// not a stored setting: the guarantee it provides is that this process
+	// CANNOT be told to probe a new address, and a switch the console can flip
+	// provides no such guarantee. Whoever runs the process decides; whoever
+	// holds the admin password does not.
+	//
+	// This matters at scale rather than on one desktop. Adding a target makes
+	// the host send packets to an address the requester chose, so a fleet
+	// deployed from one image shares one admin credential and, without this,
+	// one compromise turns every agent into a packet source.
+	ReadOnly bool
 }
 
 func defaultConfig() *Config {

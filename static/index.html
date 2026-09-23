@@ -82,7 +82,7 @@
          -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
   header { display:flex; align-items:baseline; gap:14px; margin-bottom:14px; flex-wrap:wrap; }
   .mark { color:var(--phos); font-family:var(--mono); font-weight:700;
-          font-size:26px; letter-spacing:.03em; display:flex; align-items:center; gap:9px; }
+          font-size:26px; letter-spacing:.03em; display:flex; align-items:center; gap:10px; }
   .tag { color:var(--dim); font-size:var(--fs-small); font-weight:400; letter-spacing:.01em; }
   .row { display:flex; gap:12px; align-items:flex-start; margin-bottom:14px; flex-wrap:wrap; }
   .pills { display:flex; gap:8px; flex-wrap:wrap; }
@@ -100,17 +100,11 @@
   .hdr-actions .lang-picker { padding:7px 10px; }
   .led { width:8px; height:8px; border-radius:50%; background:var(--phos); box-shadow:0 0 6px var(--phos); }
   .led.bad { background:var(--alert); box-shadow:0 0 6px var(--alert); }
-  /* Brand dot: alternates the two colours already used for host status (green =
-     healthy, red = down), so the same signal that reads "up/down" on a target row
-     reads "alive" at the letterhead — a small mnemonic, not a new colour language. */
-  .brand-led { width:11px; height:11px; border-radius:50%; flex:none;
-               animation: brand-blink 2.4s ease-in-out infinite; }
-  @keyframes brand-blink {
-    0%, 45%   { background:var(--phos); box-shadow:0 0 8px var(--phos); }
-    50%, 95%  { background:var(--alert); box-shadow:0 0 8px var(--alert); }
-    100%      { background:var(--phos); box-shadow:0 0 8px var(--phos); }
-  }
-  @media (prefers-reduced-motion: reduce) { .brand-led { animation:none; background:var(--phos); } }
+  /* The mark and the wordmark are one lockup. The icon is the same picture the
+     taskbar and the .exe carry, so the program looks like itself wherever it
+     turns up. It replaced a blinking dot that suggested live status while
+     actually being on a fixed timer. */
+  .brand-ic { width:30px; height:30px; flex:none; }
   .rng { display:flex; background:var(--panel); border:1px solid var(--line); border-radius:4px; overflow:hidden; }
   .rng span { color:var(--dim); font-family:var(--sans); font-size:var(--fs-micro);
               font-weight:600; padding:9px 10px 0 12px; letter-spacing:.14em; }
@@ -199,7 +193,15 @@ body.light input[type="datetime-local"]{
 </head>
 <body>
 <header>
-  <div class="mark">pingping <span class="brand-led"></span></div>
+  <div class="mark">
+    <!-- Same geometry as packaging/icon/make_icon.py, drawn inline so it takes
+         each theme's colours instead of carrying baked-in ones: the trace is
+         --phos and the second spike is --alert, exactly as in the chart below. -->
+    <svg class="brand-ic" viewBox="0 0 32 32" aria-hidden="true">
+      <rect x="3.8"  y="21.25" width="24.4" height="2.3"  rx="1.15" fill="var(--phos)"/>
+      <rect x="10.4" y="12.8"  width="2.3"  height="10.75" rx="1.15" fill="var(--phos)"/>
+      <rect x="19.0" y="8.3"   width="2.3"  height="15.25" rx="1.15" fill="var(--alert)"/>
+    </svg>pingping</div>
   <div class="tag" data-i18n="console.tagline">One binary. One graph. One metric: Latency.</div>
   <div class="hdr-actions">
     <button class="pill" id="editBtn" title="add, edit or remove targets" style="display:none" data-i18n="console.targets">✎ targets</button>
@@ -554,7 +556,7 @@ fetch('/api/version').then(r => r.json()).then(d => {
   // The server refuses target writes from a viewer; hiding the button keeps the
   // UI honest about it rather than letting someone discover the rule by 403.
   fetch('/api/me').then(r => r.ok ? r.json() : null).then(me => {
-    if (me && me.role === 'admin') $('editBtn').style.display = '';
+    if (me && me.role === 'admin' && !me.readonly) $('editBtn').style.display = '';
   }).catch(() => {});
   const el = $('ver');
   if (el && d.version) el.textContent = 'v' + String(d.version).replace(/^v/, '');

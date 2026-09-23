@@ -17,15 +17,3 @@ func systemDataDir() string {
 	}
 	return filepath.Join(base, "pingping")
 }
-
-// legacySystemDirs are the system data directories earlier names used. Only
-// SmokeTrail had one on Windows: fogping never shipped a Windows build, so its
-// database can only ever turn up beside a portable copy, which the same-directory
-// check already covers.
-func legacySystemDirs() []string {
-	base := os.Getenv("ProgramData")
-	if base == "" {
-		base = `C:\ProgramData`
-	}
-	return []string{filepath.Join(base, "SmokeTrail")}
-}
