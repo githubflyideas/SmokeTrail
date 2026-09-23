@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"os"
 	"runtime"
 	"sort"
 	"time"
@@ -59,8 +60,61 @@ func runSelftest(w io.Writer) {
 		"DRIFTING — probe timestamps will wander from wall clock")
 
 	fmt.Fprintln(w)
+	storageCheck(w)
+
+	fmt.Fprintln(w)
 	fmt.Fprintf(w, "Read the verdicts, not just the numbers. Two PASS lines on clock resolution\n")
-	fmt.Fprintf(w, "and sleep overshoot are what the RTT distribution depends on.\n")
+	fmt.Fprintf(w, "and sleep overshoot are what the RTT distribution depends on, and the\n")
+	fmt.Fprintf(w, "storage line is whether this build can record anything at all.\n")
+}
+
+// storageCheck opens a database, writes, reads back and deletes it.
+//
+// This exists because a build can compile, link, start, serve its first page and
+// still be incapable of storing a single measurement: the SQLite driver is
+// selected at build time, and a binary built against the wrong one fails only
+// when something first touches the database — which, on Windows, is during
+// service registration, where it surfaces as "the service could not be
+// registered (exit 1)" and says nothing about a database at all.
+//
+// `go build` succeeding proves the program compiles. It does not prove the
+// program works. This is the cheapest check that tells those apart, it ships
+// inside the binary, and it is one command for anyone holding a copy they are
+// unsure about.
+func storageCheck(w io.Writer) {
+	dir, err := os.MkdirTemp("", "pingping-selftest-")
+	if err != nil {
+		fmt.Fprintf(w, "storage              cannot create a temporary directory: %v\n", err)
+		verdict(w, false, "", "CANNOT TEST — no writable temp directory")
+		return
+	}
+	defer os.RemoveAll(dir)
+
+	start := time.Now()
+	st, err := NewStore(dir, nil)
+	if err != nil {
+		fmt.Fprintf(w, "storage              %v\n", err)
+		verdict(w, false, "",
+			"THIS BUILD CANNOT STORE DATA — the SQLite driver is not working. "+
+				"Do not use this binary; get one from the project's releases.")
+		return
+	}
+	defer st.Close()
+
+	// A round trip through the same table the console uses, so this exercises the
+	// driver rather than merely opening a file.
+	const probe = "selftest"
+	if err := st.SetSetting(probe, "ok"); err != nil {
+		fmt.Fprintf(w, "storage              write failed: %v\n", err)
+		verdict(w, false, "", "THIS BUILD CANNOT STORE DATA — writes fail")
+		return
+	}
+	got, ok := st.Setting(probe)
+	fmt.Fprintf(w, "storage              opened, wrote and read back in %v\n", time.Since(start).Round(time.Millisecond))
+	fmt.Fprintf(w, "  whether this binary can record measurements at all.\n")
+	verdict(w, ok && got == "ok",
+		"the database works; this build can record measurements",
+		"THIS BUILD CANNOT STORE DATA — the value did not read back")
 }
 
 func verdict(w io.Writer, ok bool, yes, no string) {

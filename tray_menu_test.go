@@ -21,11 +21,16 @@ var (
 	reMenuCase = regexp.MustCompile(`case\s+(id\w+)\s*:`)
 )
 
-func trayMenuSource(t *testing.T) string {
+func trayMenuSource(t *testing.T) string { return readSource(t, "tray_windows.go") }
+
+// readSource reads a file from the package directory. Several tests here check
+// things the compiler cannot: that a menu item has a handler, that a workflow
+// still greps for the string a check emits.
+func readSource(t *testing.T, name string) string {
 	t.Helper()
-	b, err := os.ReadFile("tray_windows.go")
+	b, err := os.ReadFile(name)
 	if err != nil {
-		t.Fatalf("reading the tray source: %v", err)
+		t.Fatalf("reading %s: %v", name, err)
 	}
 	return string(b)
 }

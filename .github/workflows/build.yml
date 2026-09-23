@@ -62,6 +62,64 @@ jobs:
             -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}-${GITHUB_SHA::7}" \
             -o "dist/${{ matrix.name }}" .
           ls -la dist/
+
+      # Run the artifact, do not merely produce it.
+      #
+      # `go build` succeeding proves the program compiles, and nothing else. A
+      # binary can compile, link, start and serve its first page while being
+      # incapable of storing a single measurement, because the SQLite driver is
+      # chosen at build time and a wrong one fails only when something first
+      # touches the database. On Windows that first touch is service
+      # registration, where it surfaces as "the service could not be registered
+      # (exit 1)" and never mentions a database.
+      #
+      # This job could only ever run one of the six, and one is enough: the
+      # storage layer is the same pure-Go code on every target.
+      - name: smoke-test the binary this job just built
+        if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
+        run: |
+          set -euo pipefail
+          bin="$PWD/dist/${{ matrix.name }}"
+          chmod +x "$bin"
+          work=$(mktemp -d); mkdir -p "$work/data"
+
+          # selftest carries its own storage verdict; a FAIL there is this exact
+          # class of fault and must stop the build.
+          "$bin" selftest | tee "$work/selftest.txt"
+          if grep -q "CANNOT STORE DATA" "$work/selftest.txt"; then
+            echo "::error::the built binary cannot open a database"
+            exit 1
+          fi
+
+          # End to end against the real HTTP API: first-run setup, sign in, add a
+          # target, read it back. This is the path an operator takes in the first
+          # sixty seconds, and it is the one that was broken while every build
+          # was green.
+          "$bin" --data "$work/data" --port 8599 --localhost &
+          pid=$!
+          trap 'kill $pid 2>/dev/null || true' EXIT
+          for i in $(seq 1 40); do
+            curl -sf -o /dev/null "http://127.0.0.1:8599/login" && break
+            sleep 0.25
+          done
+
+          curl -sf -X POST http://127.0.0.1:8599/api/setup \
+            -H 'Content-Type: application/json' \
+            -d '{"User":"ci","Pass":"correct horse battery"}' > /dev/null
+          curl -sf -c "$work/c" -X POST http://127.0.0.1:8599/api/login \
+            -H 'Content-Type: application/json' \
+            -d '{"User":"ci","Pass":"correct horse battery"}' > /dev/null
+          curl -sf -b "$work/c" -X POST http://127.0.0.1:8599/api/targets \
+            -H 'Content-Type: application/json' \
+            -d '{"name":"smoke","type":"icmp","host":"127.0.0.1","pace":"fast"}' > /dev/null
+          curl -sf -b "$work/c" http://127.0.0.1:8599/api/targets | tee "$work/targets.json"
+          grep -q '"name":"smoke"' "$work/targets.json"
+
+          # The database has to exist on disk afterwards. An in-memory fallback
+          # would pass everything above and lose the data on restart.
+          test -s "$work/data/pingping.db"
+          echo "smoke test passed: the binary stores what it is told to store"
+
       - uses: actions/upload-artifact@v4
         with:
           name: pingping-${{ matrix.goos }}-${{ matrix.goarch }}

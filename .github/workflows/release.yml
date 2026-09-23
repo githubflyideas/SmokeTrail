@@ -66,6 +66,47 @@ jobs:
           done
           ls -la dist/
 
+      # Nothing is published that has not been run. A release is the one place
+      # where "it compiled" being mistaken for "it works" reaches other people:
+      # every artifact below is downloaded and trusted, and a binary that cannot
+      # open its database passes every other check in this file.
+      #
+      # Only linux/amd64 can execute here, and that is enough — the storage
+      # layer is the same pure-Go code on all six targets, so a driver fault
+      # shows up identically on any of them.
+      - name: smoke-test before publishing anything
+        run: |
+          set -euo pipefail
+          bin="$PWD/dist/pingping-linux-amd64"
+          chmod +x "$bin"
+          work=$(mktemp -d); mkdir -p "$work/data"
+
+          "$bin" selftest | tee "$work/selftest.txt"
+          if grep -q "CANNOT STORE DATA" "$work/selftest.txt"; then
+            echo "::error::refusing to publish: the built binary cannot open a database"
+            exit 1
+          fi
+
+          "$bin" --data "$work/data" --port 8599 --localhost &
+          pid=$!
+          trap 'kill $pid 2>/dev/null || true' EXIT
+          for i in $(seq 1 40); do
+            curl -sf -o /dev/null "http://127.0.0.1:8599/login" && break
+            sleep 0.25
+          done
+          curl -sf -X POST http://127.0.0.1:8599/api/setup \
+            -H 'Content-Type: application/json' \
+            -d '{"User":"ci","Pass":"correct horse battery"}' > /dev/null
+          curl -sf -c "$work/c" -X POST http://127.0.0.1:8599/api/login \
+            -H 'Content-Type: application/json' \
+            -d '{"User":"ci","Pass":"correct horse battery"}' > /dev/null
+          curl -sf -b "$work/c" -X POST http://127.0.0.1:8599/api/targets \
+            -H 'Content-Type: application/json' \
+            -d '{"name":"smoke","type":"icmp","host":"127.0.0.1","pace":"fast"}' > /dev/null
+          curl -sf -b "$work/c" http://127.0.0.1:8599/api/targets | grep -q '"name":"smoke"'
+          test -s "$work/data/pingping.db"
+          echo "smoke test passed; safe to publish"
+
       # The portable zip carries an empty-but-present data/ folder. That single
       # directory is the entire portable-vs-installed switch (ADR 5).
       - name: portable zip

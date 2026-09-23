@@ -11,6 +11,34 @@ mistake:
 Windows users download from Releases. Nothing they need is committed to the
 repository, and nothing built is either.
 
+## Binaries come from CI. Always.
+
+Never hand someone a binary built anywhere else — not from a developer machine,
+not from a sandbox, not "just to test". The SQLite driver is selected at build
+time, so a binary built in an environment that cannot fetch `modernc.org/sqlite`
+compiles, links, starts, serves its first page, and then cannot store a single
+measurement. On Windows the first thing to touch the database is service
+registration, which reports:
+
+    The files were installed, but the pingping service could not be registered (exit 1)
+
+and says nothing about a database. That message cost a night. The build that
+produced it was green; `go build` succeeding proves the program compiles and
+nothing more.
+
+Two things now stand in the way, and neither should be removed:
+
+- `pingping selftest` opens a database, writes and reads back, and prints a
+  storage verdict. Anyone holding a copy they are unsure about can settle it in
+  one command.
+- The `build` and `release` workflows run the binary they just built — selftest,
+  then first-run setup, sign-in, create a target and read it back over the HTTP
+  API, then assert the database exists on disk. Nothing is published that has
+  not been run.
+
+If you need to check a change on Windows before a release, push a branch and
+take the artifact from the build workflow. Do not build it locally and send it.
+
 ## Cutting a release
 
 ```bash
