@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"golang.org/x/sys/windows"
@@ -289,17 +291,12 @@ func installService(opt options) error {
 	}
 	defer m.Disconnect()
 
-	if s, err := m.OpenService(svcName); err == nil {
-		s.Close()
-		return fmt.Errorf("service %s already exists — run `pingping uninstall` first", svcName)
-	}
-
 	// The data directory is pinned explicitly: a service starts with an arbitrary
 	// working directory, so a relative default would land somewhere surprising.
 	args := append([]string{"run", "--data", cfg.DataDir},
 		stripFlags(opt.rawArgs, "data", "log-file", "port")...)
 
-	s, err := m.CreateService(svcName, exe, mgr.Config{
+	s, reinstalled, err := createOrUpdateService(m, exe, args, mgr.Config{
 		DisplayName:      svcName,
 		Description:      svcDesc,
 		StartType:        mgr.StartAutomatic,
@@ -312,9 +309,9 @@ func installService(opt options) error {
 		// Ask for a per-service SID so the data directory can be locked to this
 		// service rather than to every LocalService process on the box.
 		SidType: windows.SERVICE_SID_TYPE_UNRESTRICTED,
-	}, args...)
+	})
 	if err != nil {
-		return fmt.Errorf("create service: %w", err)
+		return err
 	}
 	defer s.Close()
 
@@ -367,10 +364,14 @@ func installService(opt options) error {
 		log.Printf("warning: could not record the console port for the tray icon: %v", err)
 	}
 
-	if err := s.Start(); err != nil {
+	if err := s.Start(); err != nil && !alreadyRunning(err) {
 		return fmt.Errorf("service registered but would not start: %w", err)
 	}
-	log.Printf("installed %s", svcName)
+	if reinstalled {
+		log.Printf("updated the existing %s service", svcName)
+	} else {
+		log.Printf("installed %s", svcName)
+	}
 	log.Printf("  account   %s (per-service SID %s)", svcAccount, svcSID)
 	log.Printf("  start     automatic (delayed)")
 	log.Printf("  recovery  restart after 5s, 20s, 60s")
@@ -439,4 +440,76 @@ func stripFlags(args []string, names ...string) []string {
 		out = append(out, a)
 	}
 	return out
+}
+
+// createOrUpdateService registers the service, or points an existing
+// registration at this binary.
+//
+// It used to refuse outright when the service already existed. That made the
+// installer unable to run over itself: the files land, the registration does
+// not, and the user is shown "the service could not be registered (exit 1)"
+// while the old registration still points at the old executable. Every upgrade
+// failed at its last step, and the only way out was to know about a command the
+// dialog did not mention. An installer that cannot be run twice is not an
+// installer.
+//
+// Reinstalling is now the same code path as installing, which also means the
+// graphical route and `pingping install` cannot diverge.
+func createOrUpdateService(m *mgr.Mgr, exe string, args []string, c mgr.Config) (*mgr.Service, bool, error) {
+	s, err := m.OpenService(svcName)
+	if err != nil {
+		s, err = m.CreateService(svcName, exe, c, args...)
+		if err != nil {
+			return nil, false, fmt.Errorf("create service: %w", err)
+		}
+		return s, false, nil
+	}
+
+	// Stop before repointing. A running service holds its executable open, and
+	// Windows will accept a new path that then quietly does not take effect
+	// until something restarts it — which on an upgrade means the old binary
+	// keeps running while the console reports the new version.
+	if err := stopAndWait(s, 20*time.Second); err != nil {
+		log.Printf("warning: %v", err)
+	}
+
+	// UpdateConfig takes the command line as one string, composed the way
+	// CreateService composes it from its variadic args.
+	c.BinaryPathName = syscall.EscapeArg(exe)
+	for _, a := range args {
+		c.BinaryPathName += " " + syscall.EscapeArg(a)
+	}
+	if err := s.UpdateConfig(c); err != nil {
+		s.Close()
+		return nil, false, fmt.Errorf("update the existing %s service: %w", svcName, err)
+	}
+	return s, true, nil
+}
+
+// stopAndWait asks a service to stop and waits for it to actually be stopped,
+// rather than for the stop request to be accepted. Those are not the same
+// moment, and the gap is where "the new binary did not take effect" comes from.
+func stopAndWait(s *mgr.Service, timeout time.Duration) error {
+	if st, err := s.Query(); err == nil && st.State == svc.Stopped {
+		return nil
+	}
+	if _, err := s.Control(svc.Stop); err != nil {
+		// Already stopped, never started, or refusing the control. Nothing is
+		// holding the binary in the first two cases, and the third surfaces as
+		// a failed UpdateConfig with a better message than this one.
+		return nil
+	}
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		time.Sleep(300 * time.Millisecond)
+		st, err := s.Query()
+		if err != nil || st.State == svc.Stopped {
+			return nil
+		}
+	}
+	return fmt.Errorf("%s did not stop within %s; the new settings take effect at its next restart", svcName, timeout)
+}
+
+func alreadyRunning(err error) bool {
+	return errors.Is(err, windows.ERROR_SERVICE_ALREADY_RUNNING)
 }

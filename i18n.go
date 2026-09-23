@@ -94,6 +94,7 @@ type msgs struct {
 	CheckUpdates   string
 	AboutItem      string
 	ExitItem       string
+	CloseIconItem  string
 	LanguageItem   string
 	LangAuto       string
 
@@ -127,7 +128,7 @@ var trayKeys = map[string]string{
 	"DataFolder": "tray.dataFolder", "RestartService": "tray.restartService",
 	"StopService": "tray.stopService", "StartService": "tray.startService",
 	"CheckUpdates": "tray.checkUpdates", "AboutItem": "tray.about",
-	"ExitItem": "tray.exit", "LanguageItem": "tray.language",
+	"ExitItem": "tray.exit", "CloseIconItem": "tray.closeIcon", "LanguageItem": "tray.language",
 	"LangAuto": "tray.langAuto",
 
 	"Starting": "status.starting", "NotResponding": "status.notResponding",
@@ -156,6 +157,7 @@ func messages(lang string) msgs {
 		CheckUpdates:   t(trayKeys["CheckUpdates"]),
 		AboutItem:      t(trayKeys["AboutItem"]),
 		ExitItem:       t(trayKeys["ExitItem"]),
+		CloseIconItem:  t(trayKeys["CloseIconItem"]),
 		LanguageItem:   t(trayKeys["LanguageItem"]),
 		LangAuto:       t(trayKeys["LangAuto"]),
 

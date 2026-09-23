@@ -495,12 +495,15 @@ func (t *tray) showMenu() {
 	add(h, mfSeparator, 0, "")
 	add(h, mfString, idUpdates, m.CheckUpdates)
 	add(h, mfString, idAbout, m.AboutItem)
-	if !t.service {
-		// Only portable mode gets a terminal action. Under a service, "exit"
-		// would be a lie — the service keeps probing whatever this process does
-		// — and an item that stops the icon without stopping the monitoring is
-		// the most predictable support complaint there is. So there is none.
-		add(h, mfSeparator, 0, "")
+	// Both modes get a way out. Hiding it under a service was meant to avoid a
+	// user believing they had stopped the monitoring — but an icon that cannot be
+	// closed is a worse complaint than a mislabelled one, and it is worst exactly
+	// when the service is down and the icon is useless. The label carries the
+	// honesty instead: under a service this closes the icon and says so.
+	add(h, mfSeparator, 0, "")
+	if t.service {
+		add(h, mfString, idExit, m.CloseIconItem)
+	} else {
 		add(h, mfString, idExit, m.ExitItem)
 	}
 
@@ -544,6 +547,16 @@ func (t *tray) command(id uint32) {
 		t.open(t.consoleU + "/settings")
 	case idUpdates:
 		t.open(homepage + "/releases")
+	case idExit:
+		// This had no case at all: the item was drawn in portable mode and did
+		// nothing when clicked, and onExit was stored and never called.
+		//
+		// Portable mode: this process IS the program, so stop the probing too.
+		// Service mode: only the icon goes, which is what its label promises.
+		if t.onExit != nil && !t.service {
+			t.onExit()
+		}
+		procDestroyWindow.Call(uintptr(t.hwnd))
 	case idAbout:
 		t.mu.Lock()
 		st, m := t.status, t.m

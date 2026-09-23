@@ -1151,6 +1151,18 @@
       "de": "PNG, JPEG, GIF oder WebP, bis 256 KB. SVG wird nicht angenommen, da es Skript enthalten kann.",
       "ja": "PNG / JPEG / GIF / WebP、最大 256 KB。SVG はスクリプトを含められるため受け付けません。",
       "ko": "PNG, JPEG, GIF 또는 WebP, 최대 256 KB. SVG는 스크립트를 담을 수 있어 받지 않습니다."
+    },
+    "tray.closeIcon": {
+      "en": "Close this icon (the service keeps running)",
+      "zh": "关闭图标（服务继续运行）",
+      "es": "Cerrar este icono (el servicio sigue ejecutándose)",
+      "fr": "Fermer cette icône (le service continue)",
+      "pt": "Fechar este ícone (o serviço continua em execução)",
+      "ru": "Закрыть значок (служба продолжит работу)",
+      "id": "Tutup ikon ini (layanan tetap berjalan)",
+      "de": "Dieses Symbol schließen (der Dienst läuft weiter)",
+      "ja": "このアイコンを閉じる（サービスは動作を続けます）",
+      "ko": "이 아이콘 닫기 (서비스는 계속 실행됩니다)"
     }
   }
 }
