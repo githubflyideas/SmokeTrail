@@ -27,7 +27,7 @@ import (
 // waiting parent prints what it wrote. From the operator's side the command simply
 // works in the window they typed it in.
 
-const doneMarker = "\x00smoketrail-done:"
+const doneMarker = "\x00pingping-done:"
 
 func isElevated() bool {
 	tok := windows.Token(0) // pseudo-handle for the current process token
@@ -43,7 +43,7 @@ func elevateSelf(verb string, args []string) (int, error) {
 	}
 	exe, _ = filepath.Abs(exe)
 
-	f, err := os.CreateTemp("", "smoketrail-elevated-*.log")
+	f, err := os.CreateTemp("", "pingping-elevated-*.log")
 	if err != nil {
 		return 1, err
 	}

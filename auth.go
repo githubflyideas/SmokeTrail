@@ -19,7 +19,7 @@ import (
 // given, ran an open console in read-only mode. Neither idiom survives the move to
 // a service. A service's command line lives in the registry, readable by every
 // account on the box, so a password there is a password published; and nobody is
-// at a terminal to type one. So SmokeTrail does what Technitium does: the first
+// at a terminal to type one. So pingping does what Technitium does: the first
 // browser to reach the console sets the admin password, it is stored hashed, and
 // there is no unauthenticated state afterwards. See docs/adr/0004-auth.md.
 //

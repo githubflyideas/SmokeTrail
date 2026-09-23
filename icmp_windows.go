@@ -30,7 +30,7 @@ import (
 //     entirely and time the call ourselves. Go's time.Now() is backed by
 //     QueryPerformanceCounter on Windows, giving sub-microsecond resolution; the
 //     cost is that our number includes the syscall round trip through the helper,
-//     a fixed overhead rather than a source of jitter. `smoketrail selftest`
+//     a fixed overhead rather than a source of jitter. `pingping selftest`
 //     measures both so the number is known rather than assumed.
 //
 //  2. The synchronous form blocks the calling thread for the full timeout when a

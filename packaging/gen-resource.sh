@@ -32,8 +32,8 @@ rm -f resource_windows.syso resource_windows_*.syso
 
 goversioninfo \
   -platform-specific \
-  -icon packaging/icon/SmokeTrail.ico \
-  -manifest packaging/SmokeTrail.exe.manifest \
+  -icon packaging/icon/pingping.ico \
+  -manifest packaging/pingping.exe.manifest \
   -ver-major "$MAJOR" -ver-minor "$MINOR" -ver-patch "$PATCH" -ver-build 0 \
   -product-ver-major "$MAJOR" -product-ver-minor "$MINOR" -product-ver-patch "$PATCH" -product-ver-build 0 \
   -file-version "$V.0" -product-version "$V.0" \

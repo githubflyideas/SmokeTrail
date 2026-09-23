@@ -50,7 +50,7 @@ func NewStore(dir string, targets []TargetCfg) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
-	dbPath := filepath.Join(dir, "smoketrail.db")
+	dbPath := filepath.Join(dir, "pingping.db")
 	db, err := sql.Open(sqlDriver, dbPath+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		return nil, err

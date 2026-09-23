@@ -14,7 +14,7 @@ obviously not a Windows program:
   Services list.
 - **No application manifest**, so Windows was free to apply compatibility shims
   and lie to us about its own version.
-- **`smoketrail.exe`**, lowercase, next to `SmokeTrail` in Services.msc.
+- **`pingping.exe`**, lowercase, next to `pingping` in Services.msc.
 - `install` **failed with an error** telling the operator to go and open an
   elevated prompt, instead of asking for elevation the way every other Windows
   installer does.
@@ -47,7 +47,7 @@ instantly, so it is handed a log file and the waiting parent streams it: from th
 operator's side the command simply works in the window they typed it in.
 
 **A per-service SID.** Declaring `SERVICE_SID_TYPE_UNRESTRICTED` gets the service
-`NT SERVICE\SmokeTrail`, and the data directory is ACL'd to that rather than to
+`NT SERVICE\pingping`, and the data directory is ACL'd to that rather than to
 `LocalService`. There are many LocalService processes on a Windows box; now none
 of the others can read the database. One flag, one ACL, and "low privilege"
 becomes "low privilege and isolated".
@@ -63,7 +63,7 @@ to start — plus service-specific exit codes so `sc query` distinguishes "the p
 was taken" from "the database would not open". Numbers are never reused or
 renumbered, because someone's alert rule depends on them.
 
-**`SmokeTrail.exe`**, matching the product name shown in Services.msc, Task
+**`pingping.exe`**, matching the product name shown in Services.msc, Task
 Manager and the file's own version resource. Unix artifacts stay lowercase.
 
 **NSIS, not Inno Setup**, for the installer. Inno has the nicer default wizard,

@@ -84,7 +84,7 @@ func (s *sessions) dropAll() {
 	s.mu.Unlock()
 }
 
-const sessionCookie = "smoketrail_session"
+const sessionCookie = "pingping_session"
 
 func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 	sess := newSessions()
@@ -406,7 +406,7 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 			"ok":      true,
 			"port":    b.Port,
 			"applied": false,
-			"note":    "Restart the SmokeTrail service to apply it — the tray icon can do that, and it fixes the firewall rule at the same time.",
+			"note":    "Restart the pingping service to apply it — the tray icon can do that, and it fixes the firewall rule at the same time.",
 		})
 	}))
 

@@ -3,9 +3,9 @@ go.work
 go.work.sum
 
 # Build output
-/smoketrail
-/SmokeTrail
-/smoketrail.exe
+/pingping
+/pingping
+/pingping.exe
 /dist/
 
 # A portable install writes here.

@@ -14,7 +14,7 @@ repository, and nothing built is either.
 ## Cutting a release
 
 ```bash
-git tag -a v0.2.1 -m "SmokeTrail v0.2.1"
+git tag -a v0.2.1 -m "pingping v0.2.1"
 git push origin v0.2.1
 ```
 
@@ -27,7 +27,7 @@ That is the whole procedure. `.github/workflows/release.yml` then:
 3. builds the portable .zip, which ships with an empty `data` folder. That
    folder is the entire portable-versus-installed switch (ADR 5), so it has to
    be there and must not be in the installer;
-4. builds `SmokeTrail-<version>-setup.exe` with `makensis`, on Ubuntu;
+4. builds `pingping-<version>-setup.exe` with `makensis`, on Ubuntu;
 5. publishes everything with a `SHA256SUMS.txt`.
 
 No Windows runner is involved in producing a release. If that ever changes, look

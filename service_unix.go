@@ -9,9 +9,9 @@ import (
 	"os"
 )
 
-// SmokeTrail's service integration is Windows-specific by design: on Linux the job
+// pingping's service integration is Windows-specific by design: on Linux the job
 // belongs to systemd, which needs a unit file rather than code in the binary.
-// See deploy/smoketrail.service.
+// See deploy/pingping.service.
 
 func isService() bool { return false }
 
@@ -21,7 +21,7 @@ func runAsService(options) error {
 
 func runServiceVerb(verb string, _ options) int {
 	fmt.Fprintf(os.Stderr,
-		"smoketrail: `%s` is Windows-only.\nOn Linux, copy deploy/smoketrail.service to /etc/systemd/system/ and use systemctl.\n",
+		"pingping: `%s` is Windows-only.\nOn Linux, copy deploy/pingping.service to /etc/systemd/system/ and use systemctl.\n",
 		verb)
 	return 2
 }

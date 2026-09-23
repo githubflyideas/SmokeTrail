@@ -41,7 +41,7 @@ func preferredLang() string {
 }
 
 func storedLang() string {
-	k, err := registry.OpenKey(registry.CURRENT_USER, `SOFTWARE\SmokeTrail`, registry.QUERY_VALUE)
+	k, err := registry.OpenKey(registry.CURRENT_USER, `SOFTWARE\pingping`, registry.QUERY_VALUE)
 	if err != nil {
 		return langAuto
 	}
@@ -57,7 +57,7 @@ func storedLang() string {
 }
 
 func storeLang(tag string) {
-	k, _, err := registry.CreateKey(registry.CURRENT_USER, `SOFTWARE\SmokeTrail`, registry.SET_VALUE)
+	k, _, err := registry.CreateKey(registry.CURRENT_USER, `SOFTWARE\pingping`, registry.SET_VALUE)
 	if err != nil {
 		return
 	}

@@ -1,28 +1,28 @@
-# /etc/systemd/system/smoketrail.service
+# /etc/systemd/system/pingping.service
 #
-#   sudo cp deploy/smoketrail.service /etc/systemd/system/
-#   sudo systemctl daemon-reload && sudo systemctl enable --now smoketrail
+#   sudo cp deploy/pingping.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now pingping
 #
 # ICMP without root needs one of:
 #   sysctl net.ipv4.ping_group_range = 0 2147483647   (preferred; see README)
-#   setcap cap_net_raw+ep /usr/local/bin/smoketrail
+#   setcap cap_net_raw+ep /usr/local/bin/pingping
 
 [Unit]
-Description=SmokeTrail — link quality monitoring
-Documentation=https://github.com/githubflyideas/SmokeTrail
+Description=pingping — link quality monitoring
+Documentation=https://github.com/githubflyideas/pingping
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/smoketrail run --data /var/lib/smoketrail
+ExecStart=/usr/local/bin/pingping run --data /var/lib/pingping
 Restart=on-failure
 RestartSec=5
 
-# The Windows service runs as LocalService; this is the same idea. SmokeTrail needs
+# The Windows service runs as LocalService; this is the same idea. pingping needs
 # to open a socket, send ICMP and write one directory — nothing else.
 DynamicUser=yes
-StateDirectory=smoketrail
+StateDirectory=pingping
 AmbientCapabilities=CAP_NET_RAW
 CapabilityBoundingSet=CAP_NET_RAW
 NoNewPrivileges=yes

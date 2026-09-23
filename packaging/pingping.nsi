@@ -1,4 +1,4 @@
-;  SmokeTrail installer.
+;  pingping installer.
 ;
 ;  NSIS rather than Inno Setup for one reason: makensis runs on Linux, so the
 ;  whole release — binaries and installer — comes out of a single ubuntu job with
@@ -7,7 +7,7 @@
 ;  per-platform build machines.
 ;
 ;  The installer itself does almost nothing. It lays down one .exe and calls
-;  `SmokeTrail.exe install`, which is the same code path an administrator runs
+;  `pingping.exe install`, which is the same code path an administrator runs
 ;  from a prompt. One implementation of "become a service", exercised by both
 ;  routes, so the graphical path cannot rot while the command-line one stays
 ;  tested.
@@ -15,21 +15,21 @@
 ;  It deliberately does NOT create a data folder beside the .exe — that absence is
 ;  what makes an installed copy use %ProgramData%. See ADR 5.
 ;
-;    makensis -DVERSION=0.1.0 -DSRCEXE=../dist/SmokeTrail.exe SmokeTrail.nsi
+;    makensis -DVERSION=0.1.0 -DSRCEXE=../dist/pingping.exe pingping.nsi
 
 !ifndef VERSION
   !define VERSION "0.0.0"
 !endif
 !ifndef SRCEXE
-  !define SRCEXE "..\dist\SmokeTrail.exe"
+  !define SRCEXE "..\dist\pingping.exe"
 !endif
 !ifndef OUTFILE
-  !define OUTFILE "..\dist\SmokeTrail-${VERSION}-setup.exe"
+  !define OUTFILE "..\dist\pingping-${VERSION}-setup.exe"
 !endif
 
-!define APPNAME   "SmokeTrail"
+!define APPNAME   "pingping"
 !define PUBLISHER "githubflyideas"
-!define HOMEPAGE  "https://github.com/githubflyideas/SmokeTrail"
+!define HOMEPAGE  "https://github.com/githubflyideas/pingping"
 !define REGKEY    "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}"
 
 Name "${APPNAME} ${VERSION}"
@@ -53,8 +53,8 @@ VIAddVersionKey "LegalCopyright"  "Copyright 2026 ${PUBLISHER}. Apache License 2
 !include "nsDialogs.nsh"
 !include "LogicLib.nsh"
 
-!define MUI_ICON   "icon\SmokeTrail.ico"
-!define MUI_UNICON "icon\SmokeTrail.ico"
+!define MUI_ICON   "icon\pingping.ico"
+!define MUI_UNICON "icon\pingping.ico"
 !define MUI_ABORTWARNING
 
 !insertmacro MUI_PAGE_LICENSE "..\LICENSE"
@@ -68,7 +68,7 @@ Page custom PortPageCreate PortPageLeave
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_FUNCTION OpenConsole
 !define MUI_FINISHPAGE_RUN_TEXT "Open the console and create the admin account"
-!define MUI_FINISHPAGE_LINK "SmokeTrail on GitHub"
+!define MUI_FINISHPAGE_LINK "pingping on GitHub"
 !define MUI_FINISHPAGE_LINK_LOCATION "${HOMEPAGE}"
 !insertmacro MUI_PAGE_FINISH
 
@@ -90,7 +90,7 @@ FunctionEnd
 
 Function PortPageCreate
   !insertmacro MUI_HEADER_TEXT "Console port" \
-    "SmokeTrail has no window of its own - you manage it in a browser."
+    "pingping has no window of its own - you manage it in a browser."
   nsDialogs::Create 1018
   Pop $PortDialog
   ${If} $PortDialog == error
@@ -119,13 +119,30 @@ Function OpenConsole
   ExecShell "open" "http://localhost:$Port/"
 FunctionEnd
 
-Section "SmokeTrail" SecMain
+Section "pingping" SecMain
   SectionIn RO
+
+  ; This program was called SmokeTrail up to 0.3.2. An installed copy of that
+  ; version leaves behind a running service and a Startup tray shortcut, both
+  ; bound to the same console port — so without this, the new service fails to
+  ; bind and two notification icons appear. The database is NOT touched here:
+  ; the binary migrates it on first run (see migrate.go), which keeps one owner
+  ; for that decision instead of two.
+  DetailPrint "Checking for a previous SmokeTrail installation..."
+  nsExec::ExecToLog 'sc stop SmokeTrail'
+  nsExec::ExecToLog 'sc delete SmokeTrail'
+  nsExec::ExecToLog 'taskkill /F /IM SmokeTrail.exe'
+  Delete "$SMSTARTUP\SmokeTrail.lnk"
+  Delete "$SMPROGRAMS\SmokeTrail\SmokeTrail.lnk"
+  Delete "$SMPROGRAMS\SmokeTrail\Uninstall SmokeTrail.lnk"
+  RMDir  "$SMPROGRAMS\SmokeTrail"
+  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SmokeTrail"
+
   SetOutPath "$INSTDIR"
-  File /oname=SmokeTrail.exe "${SRCEXE}"
+  File /oname=pingping.exe "${SRCEXE}"
   File "..\README.md"
 
-  ; Port and DataDir are written by `SmokeTrail.exe install` itself, as the
+  ; Port and DataDir are written by `pingping.exe install` itself, as the
   ; values the tray process reads. One writer, one type.
   WriteRegStr HKLM "Software\${APPNAME}" "InstallDir" "$INSTDIR"
 
@@ -133,7 +150,7 @@ Section "SmokeTrail" SecMain
   WriteRegStr   HKLM "${REGKEY}" "DisplayName"     "${APPNAME}"
   WriteRegStr   HKLM "${REGKEY}" "DisplayVersion"  "${VERSION}"
   WriteRegStr   HKLM "${REGKEY}" "Publisher"       "${PUBLISHER}"
-  WriteRegStr   HKLM "${REGKEY}" "DisplayIcon"     "$INSTDIR\SmokeTrail.exe"
+  WriteRegStr   HKLM "${REGKEY}" "DisplayIcon"     "$INSTDIR\pingping.exe"
   WriteRegStr   HKLM "${REGKEY}" "URLInfoAbout"    "${HOMEPAGE}"
   WriteRegStr   HKLM "${REGKEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr   HKLM "${REGKEY}" "UninstallString" '"$INSTDIR\uninstall.exe"'
@@ -149,26 +166,26 @@ Section "SmokeTrail" SecMain
   ; a port number and type it into a browser".
   SetShellVarContext all
   CreateShortCut "$SMSTARTUP\${APPNAME} tray.lnk" \
-    "$INSTDIR\SmokeTrail.exe" "tray" "$INSTDIR\SmokeTrail.exe" 0
+    "$INSTDIR\pingping.exe" "tray" "$INSTDIR\pingping.exe" 0
 
   CreateDirectory "$SMPROGRAMS\${APPNAME}"
   CreateShortCut "$SMPROGRAMS\${APPNAME}\${APPNAME} console.lnk" \
-    "$INSTDIR\SmokeTrail.exe" "" "$INSTDIR\SmokeTrail.exe" 0
+    "$INSTDIR\pingping.exe" "" "$INSTDIR\pingping.exe" 0
   CreateShortCut "$SMPROGRAMS\${APPNAME}\Uninstall ${APPNAME}.lnk" "$INSTDIR\uninstall.exe"
 
   ; The service registration itself. We are already elevated, so the exe's own
   ; self-elevation path is skipped and this runs straight through.
-  DetailPrint "Registering the SmokeTrail service..."
-  nsExec::ExecToLog '"$INSTDIR\SmokeTrail.exe" install --port $Port'
+  DetailPrint "Registering the pingping service..."
+  nsExec::ExecToLog '"$INSTDIR\pingping.exe" install --port $Port'
   Pop $0
   ${If} $0 != 0
     MessageBox MB_ICONSTOP|MB_OK \
-      "The files were installed, but the SmokeTrail service could not be registered (exit $0).$\n$\nRun this from an elevated prompt to see why:$\n  $INSTDIR\SmokeTrail.exe install --port $Port"
+      "The files were installed, but the pingping service could not be registered (exit $0).$\n$\nRun this from an elevated prompt to see why:$\n  $INSTDIR\pingping.exe install --port $Port"
   ${EndIf}
 
   ; Start the tray now rather than making the operator sign out and back in.
   ; It waits for the service to answer before it shows anything.
-  Exec '"$INSTDIR\SmokeTrail.exe" tray'
+  Exec '"$INSTDIR\pingping.exe" tray'
 SectionEnd
 
 Section "Uninstall"
@@ -177,13 +194,13 @@ Section "Uninstall"
   ; Deregister first — that stops the service cleanly, and it needs the binary
   ; we are about to delete. Only then kill whatever is left, which is the tray
   ; process holding the exe open.
-  nsExec::ExecToLog '"$INSTDIR\SmokeTrail.exe" uninstall'
+  nsExec::ExecToLog '"$INSTDIR\pingping.exe" uninstall'
   Pop $0
-  nsExec::ExecToLog 'taskkill /F /IM SmokeTrail.exe'
+  nsExec::ExecToLog 'taskkill /F /IM pingping.exe'
   Pop $0
   Sleep 800
 
-  Delete "$INSTDIR\SmokeTrail.exe"
+  Delete "$INSTDIR\pingping.exe"
   Delete "$INSTDIR\README.md"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"

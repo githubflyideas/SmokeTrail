@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// Round 是 SmokeTrail 的原子数据单元:一轮探测的全部原始样本。
+// Round 是 pingping 的原子数据单元:一轮探测的全部原始样本。
 // 存分布而不是均值 —— 这是整个项目的立项理由。
 type Round struct {
 	T  int64     `json:"t"`           // unix 秒
@@ -24,7 +24,7 @@ type Round struct {
 // other ping on the box; on Windows the kernel matches replies to handles for us,
 // but the payload stays byte-identical so an RTT measured on either platform is
 // measuring the same 22-byte ICMP message.
-const icmpMagic = "smoketrail"
+const icmpMagic = "pingping"
 
 func icmpPayload(nonce [4]byte) []byte {
 	p := make([]byte, 0, len(icmpMagic)+4)

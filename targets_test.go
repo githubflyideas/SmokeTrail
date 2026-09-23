@@ -15,7 +15,7 @@ import (
 // land on the same id — i.e. bring the history back.
 func TestMigrationKeepsHistory(t *testing.T) {
 	dir := t.TempDir()
-	db, _ := sql.Open(sqlDriver, filepath.Join(dir, "smoketrail.db"))
+	db, _ := sql.Open(sqlDriver, filepath.Join(dir, "pingping.db"))
 	db.Exec(`CREATE TABLE targets (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)`)
 	db.Exec(`INSERT INTO targets(name) VALUES('HK CN2')`)
 	db.Close()

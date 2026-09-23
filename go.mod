@@ -1,4 +1,4 @@
-module github.com/githubflyideas/SmokeTrail
+module github.com/githubflyideas/pingping
 
 go 1.24
 

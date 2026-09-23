@@ -6,7 +6,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// SmokeTrail links the pure-Go SQLite driver rather than mattn/go-sqlite3, so the
+// pingping links the pure-Go SQLite driver rather than mattn/go-sqlite3, so the
 // whole program builds with CGO_ENABLED=0. That is what makes
 // `GOOS=windows go build` a one-liner and the result a single .exe with no MSVC
 // runtime, no mingw in CI, and no DLL beside it. The cost is roughly 1.5-2x on

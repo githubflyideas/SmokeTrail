@@ -15,7 +15,7 @@
 // For strings built in JavaScript, T('key') after i18nReady.
 
 (function () {
-  const STORE = 'smoketrail_lang';
+  const STORE = 'pingping_lang';
   let S = {};          // key -> translated string
   let META = { langs: [], names: {}, lang: 'en' };
 

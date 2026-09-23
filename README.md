@@ -1,8 +1,8 @@
-# SmokeTrail 💨
+# pingping 💨
 
 > A modern, lightweight, and cross-platform SmokePing alternative for network quality monitoring.
 
-SmokeTrail delivers long-term network performance tracking—monitoring latency variations, jitter, and packet loss over time with intuitive visual charts. Designed to be lightweight and zero-dependency, it runs seamlessly across **Windows**, **Linux**, and **macOS**.
+pingping delivers long-term network performance tracking—monitoring latency variations, jitter, and packet loss over time with intuitive visual charts. Designed to be lightweight and zero-dependency, it runs seamlessly across **Windows**, **Linux**, and **macOS**.
 
 <img width="1851" height="857" alt="image" src="https://github.com/user-attachments/assets/097856b4-ead0-4326-be51-98f2f2987d22" />
 <img width="1839" height="836" alt="image" src="https://github.com/user-attachments/assets/f77f5a58-50db-42b8-aaed-f1da2750068d" />
@@ -14,11 +14,11 @@ SmokeTrail delivers long-term network performance tracking—monitoring latency 
 ```bash
 Windows
 
-https://github.com/githubflyideas/SmokeTrail/releases/download/v0.3.2/SmokeTrail-0.3.2-setup.exe
+https://github.com/githubflyideas/pingping/releases/download/v0.4.0/pingping-0.4.0-setup.exe
 
 macos
 
-https://github.com/githubflyideas/SmokeTrail/releases/download/v0.3.2/smoketrail-darwin-arm64
+https://github.com/githubflyideas/pingping/releases/download/v0.4.0/pingping-darwin-arm64
 ```
 ### ✨ Key Features
 
@@ -37,7 +37,7 @@ https://github.com/githubflyideas/SmokeTrail/releases/download/v0.3.2/smoketrail
 * **Route & Line Comparison**: Compare route stability across different ISPs or nodes over 24-hour periods.
 
   
-### ✨ Quick Comparison    [PINGPING] VS [FOGPING] VS [SmokeTrail]
+### ✨ Quick Comparison    [PINGPING] VS [FOGPING] VS [pingping]
 
 <img width="1410" height="731" alt="image" src="https://github.com/user-attachments/assets/911f4656-5f52-4982-8ece-b5b78bbe2d4d" />
 

@@ -41,12 +41,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { goos: windows, goarch: amd64, name: SmokeTrail-windows-amd64.exe }
-          - { goos: windows, goarch: '386', name: SmokeTrail-windows-386.exe }
-          - { goos: windows, goarch: arm64, name: SmokeTrail-windows-arm64.exe }
-          - { goos: linux,   goarch: amd64, name: smoketrail-linux-amd64 }
-          - { goos: linux,   goarch: arm64, name: smoketrail-linux-arm64 }
-          - { goos: darwin,  goarch: arm64, name: smoketrail-darwin-arm64 }
+          - { goos: windows, goarch: amd64, name: pingping-windows-amd64.exe }
+          - { goos: windows, goarch: '386', name: pingping-windows-386.exe }
+          - { goos: windows, goarch: arm64, name: pingping-windows-arm64.exe }
+          - { goos: linux,   goarch: amd64, name: pingping-linux-amd64 }
+          - { goos: linux,   goarch: arm64, name: pingping-linux-arm64 }
+          - { goos: darwin,  goarch: arm64, name: pingping-darwin-arm64 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -64,7 +64,7 @@ jobs:
           ls -la dist/
       - uses: actions/upload-artifact@v4
         with:
-          name: smoketrail-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: pingping-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/*
 
   # selftest measures the HOST, not the code: clock resolution, scheduler wake

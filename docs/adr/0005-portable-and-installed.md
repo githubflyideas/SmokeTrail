@@ -22,7 +22,7 @@ One rule, checked at startup:
 
     --data DIR given            →  use it
     <exe dir>/data exists       →  portable: everything stays beside the binary
-    otherwise                   →  %ProgramData%\SmokeTrail  (Windows)
+    otherwise                   →  %ProgramData%\pingping  (Windows)
                                    ./data                    (Unix)
 
 The portable .zip ships with an empty `data` directory. The installer does not.

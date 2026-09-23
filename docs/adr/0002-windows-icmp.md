@@ -4,7 +4,7 @@ Status: accepted · 2026-09
 
 ## Context
 
-On Linux, SmokeTrail opens `SOCK_DGRAM`/`IPPROTO_ICMP` — an unprivileged ICMP
+On Linux, pingping opens `SOCK_DGRAM`/`IPPROTO_ICMP` — an unprivileged ICMP
 socket — and falls back to a raw socket. Windows has no equivalent. The choices
 are:
 
@@ -36,7 +36,7 @@ So the field is ignored. We time the call ourselves with `time.Now()`, which Go
 backs with `QueryPerformanceCounter` on Windows — sub-microsecond. The cost is that
 our number includes the syscall round trip through the helper. That is a roughly
 fixed overhead rather than a source of jitter, but "roughly" is not a measurement,
-which is why `smoketrail selftest` exists and why it ships in the binary.
+which is why `pingping selftest` exists and why it ships in the binary.
 
 **This was the finding that justified doing M0 before anything else.** If the clock
 had turned out coarse, the product premise would not have held on Windows and the

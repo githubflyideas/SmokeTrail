@@ -210,7 +210,7 @@ func TestReclaimShrinksFile(t *testing.T) {
 	}
 	s.Flush()
 
-	dbPath := dir + "/smoketrail.db"
+	dbPath := dir + "/pingping.db"
 	before, err := os.Stat(dbPath)
 	if err != nil {
 		t.Fatal(err)

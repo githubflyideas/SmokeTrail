@@ -11,7 +11,7 @@ import (
 // selftest is the M0 gate for the Windows port, kept in the shipping binary so any
 // user can re-run it on their own hardware.
 //
-// SmokeTrail's whole claim is that it shows the SHAPE of a latency distribution,
+// pingping's whole claim is that it shows the SHAPE of a latency distribution,
 // not an average. That claim rests on two host properties that are free on Linux
 // and were, before this was measured, merely assumed on Windows:
 //
@@ -27,7 +27,7 @@ import (
 // not a measurement, and if they fail on a given box the RTT oscilloscope premise
 // does not hold there. Hence a command rather than a comment.
 func runSelftest(w io.Writer) {
-	fmt.Fprintf(w, "SmokeTrail %s selftest — %s/%s, %d CPUs, Go %s\n\n",
+	fmt.Fprintf(w, "pingping %s selftest — %s/%s, %d CPUs, Go %s\n\n",
 		version, runtime.GOOS, runtime.GOARCH, runtime.NumCPU(), runtime.Version())
 
 	res := clockResolution()

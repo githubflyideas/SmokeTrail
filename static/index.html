@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:,">
-<title>SmokeTrail — link quality</title>
+<title>pingping — link quality</title>
 <style>
   /* Palettes are built around one mechanic: the chart colours each sample by how far
      it sits from that round's median, walking --smoke-hot -> mid -> cool as deviation
@@ -91,6 +91,13 @@
           border:1px solid var(--line); border-radius:6px; padding:7px 14px; cursor:pointer;
           display:flex; align-items:center; gap:8px; transition:border-color .12s, color .12s; }
   .pill.on { border-color:var(--phos); color:var(--phos); font-weight:600; }
+  /* Account controls belong where a web console puts them — top right, above the
+     fold, in the order a hand reaches for them. They used to sit in the footer
+     promo box, which meant signing out required scrolling past the chart. */
+  .hdr-actions { margin-left:auto; align-self:center; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .hdr-actions .pill { text-decoration:none; }
+  .hdr-actions a.pill:hover { border-color:var(--phos); color:var(--phos); }
+  .hdr-actions .lang-picker { padding:7px 10px; }
   .led { width:8px; height:8px; border-radius:50%; background:var(--phos); box-shadow:0 0 6px var(--phos); }
   .led.bad { background:var(--alert); box-shadow:0 0 6px var(--alert); }
   /* Brand dot: alternates the two colours already used for host status (green =
@@ -192,11 +199,14 @@ body.light input[type="datetime-local"]{
 </head>
 <body>
 <header>
-  <div class="mark">SmokeTrail <span class="brand-led"></span></div>
-  <div class="tag">One binary. One graph. One metric: Latency.</div>
-  <div style="margin-left:auto; display:flex; gap:8px">
+  <div class="mark">pingping <span class="brand-led"></span></div>
+  <div class="tag" data-i18n="console.tagline">One binary. One graph. One metric: Latency.</div>
+  <div class="hdr-actions">
     <button class="pill" id="editBtn" title="add, edit or remove targets" style="display:none" data-i18n="console.targets">✎ targets</button>
     <button class="pill" id="themeBtn" title="switch theme">◐ <span id="themeName">dark</span></button>
+    <span data-i18n-picker></span>
+    <a class="pill" href="/settings" data-i18n="console.settings">Settings</a>
+    <a class="pill" href="#" id="logoutBtn" data-i18n="console.signOut">Sign out</a>
   </div>
 </header>
 
@@ -271,9 +281,7 @@ body.light input[type="datetime-local"]{
     <div class="promo-b">
       <span>This slot is for one VPS / IDC / network sponsor — your GIF here.</span>
       <span style="display:flex; gap:16px; align-items:center;">
-        <a href="https://github.com/githubflyideas/SmokeTrail" target="_blank" rel="noopener">SmokeTrail on GitHub</a>
-        <a href="/settings" data-i18n="console.settings">Settings</a>
-        <a href="#" id="logoutBtn" data-i18n="console.signOut">Sign out</a>
+        <a href="https://github.com/githubflyideas/pingping" target="_blank" rel="noopener">pingping on GitHub</a>
       </span>
     </div>
   </div>
@@ -425,9 +433,10 @@ async function renderInner(seq) {
     lossPct = nW ? lossW / nW : 0;
   }
 
-  $('legend').textContent = hourly
-    ? 'Line = hourly median · Smoke = hourly min/p50/p90/p99/max · Red bars = loss% · ◆ = bursts'
-    : '<span data-i18n="console.legend">Line = per-round median · Smoke = all samples · Red bars = loss% · ◆ = burst</span>';
+  // T(), not a literal: this runs on every redraw and overwrites whatever the
+  // data-i18n pass put here, so the markup version below used to be assigned to
+  // textContent and rendered as visible angle brackets.
+  $('legend').textContent = hourly ? T('console.legendHourly') : T('console.legend');
   const approx = hourly ? '≈' : '';
   const fmt = v => v === undefined ? '–' : approx + v.toFixed(1);
   ['p50','p90','p99'].forEach((id, i) => {
@@ -558,6 +567,15 @@ fetch('/api/version').then(r => r.json()).then(d => {
 }).catch(() => {});
 
 render();
+
+// i18n.js fires this after every catalogue load, including the language picker.
+// The chart's legend, axis labels and status line are built in script, so they
+// carry the language they were drawn in until something redraws them — without
+// this, switching language changed the chrome and left the chart in English.
+// The first load fires before this listener is attached, which is what makes it
+// safe to call render() unconditionally here.
+document.addEventListener('i18n', () => { if (!rendering) render(); });
+
 setInterval(() => { if (!rendering) render(); }, 60000); // 慢查询进行中时跳过本次自动刷新
 // Beyond 24h the chart draws hourly buckets: the smoke is the five percentiles per
 // hour rather than every sample — raw samples are only kept for two days.

@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// Detection in SmokeTrail 2.0 serves exactly one master: the ◆ marks on the chart.
+// Detection in pingping 2.0 serves exactly one master: the ◆ marks on the chart.
 // No alerting, no state machine, no thresholds to tune. robust z-score
 // (median + MAD) flags loss bursts; the chart shows them; humans decide.
 type Detector struct {

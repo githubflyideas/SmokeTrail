@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <assemblyIdentity type="win32" name="githubflyideas.SmokeTrail"
+  <assemblyIdentity type="win32" name="githubflyideas.pingping"
                     version="0.1.0.0" processorArchitecture="*"/>
-  <description>SmokeTrail — link quality monitoring</description>
+  <description>pingping — link quality monitoring</description>
 
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
     <security>

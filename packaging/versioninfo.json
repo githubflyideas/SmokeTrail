@@ -7,16 +7,16 @@
   },
   "StringFileInfo": {
     "CompanyName":      "githubflyideas",
-    "ProductName":      "SmokeTrail",
-    "FileDescription":  "SmokeTrail — link quality monitoring service",
-    "InternalName":     "SmokeTrail",
-    "OriginalFilename": "SmokeTrail.exe",
+    "ProductName":      "pingping",
+    "FileDescription":  "pingping — link quality monitoring service",
+    "InternalName":     "pingping",
+    "OriginalFilename": "pingping.exe",
     "LegalCopyright":   "Copyright 2026 githubflyideas. Licensed under the Apache License, Version 2.0.",
     "FileVersion":      "0.1.0.0",
     "ProductVersion":   "0.1.0.0",
-    "Comments":         "https://github.com/githubflyideas/SmokeTrail"
+    "Comments":         "https://github.com/githubflyideas/pingping"
   },
   "VarFileInfo": { "Translation": { "LangID": "0409", "CharsetID": "04B0" } },
-  "IconPath":     "packaging/icon/SmokeTrail.ico",
-  "ManifestPath": "packaging/SmokeTrail.exe.manifest"
+  "IconPath":     "packaging/icon/pingping.ico",
+  "ManifestPath": "packaging/pingping.exe.manifest"
 }

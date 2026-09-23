@@ -35,7 +35,7 @@ import (
 //
 // The hard constraint is Session 0 isolation: since Vista a Windows service runs
 // in a session with no desktop and cannot display UI at all. So in service mode
-// the tray is a SEPARATE PROCESS — `SmokeTrail.exe tray` — in the logged-in user's
+// the tray is a SEPARATE PROCESS — `pingping.exe tray` — in the logged-in user's
 // session, talking to the service over the same local HTTP API a browser uses. The
 // single-binary promise holds; the process model does not.
 //
@@ -111,7 +111,7 @@ var taskbarCreated uint32
 //
 // The alternative is to build the whole program for the GUI subsystem and call
 // AttachConsole(ATTACH_PARENT_PROCESS) for the command-line verbs. That removes
-// even the brief flash, at the cost of `SmokeTrail selftest` returning to the
+// even the brief flash, at the cost of `pingping selftest` returning to the
 // prompt before it finishes printing — a well-known quirk of that approach. For
 // an operations tool the command line is worth more than the last few
 // milliseconds of flicker, so: console subsystem, hidden here.
@@ -183,7 +183,7 @@ const (
 	niifInfo    = 0x1
 )
 
-const homepage = "https://github.com/githubflyideas/SmokeTrail"
+const homepage = "https://github.com/githubflyideas/pingping"
 
 // tray is one running tray icon.
 type tray struct {
@@ -209,7 +209,7 @@ func (t *tray) setLang(tag string) {
 	st := t.status
 	t.mu.Unlock()
 	t.tip = "" // force the tooltip to be rewritten in the new language
-	t.setState(!st.reachable || st.Down > 0, "SmokeTrail - "+t.line(st))
+	t.setState(!st.reachable || st.Down > 0, "pingping - "+t.line(st))
 }
 
 // health is the console's own view, fetched from the loopback-only endpoint. The
@@ -274,7 +274,7 @@ func runTray(ctx context.Context, consoleURL string, service bool, onExit func()
 	}
 
 	t.cur = t.iconOK
-	t.tip = "SmokeTrail - " + t.msgsNow().Starting
+	t.tip = "pingping - " + t.msgsNow().Starting
 	// A Startup entry runs while Explorer is still coming up, so the first add
 	// routinely fails. Keep trying rather than exiting: an icon that appears a few
 	// seconds late is the difference between working and "it never shows up".
@@ -302,7 +302,7 @@ func runTray(ctx context.Context, consoleURL string, service bool, onExit func()
 
 func (t *tray) createWindow() error {
 	inst, _, _ := procGetModuleHandle.Call(0)
-	cls := windows.StringToUTF16Ptr("SmokeTrailTray")
+	cls := windows.StringToUTF16Ptr("pingpingTray")
 	cursor, _, _ := procLoadCursor.Call(0, 32512 /* IDC_ARROW */)
 
 	wc := wndClassEx{
@@ -318,7 +318,7 @@ func (t *tray) createWindow() error {
 	// HWND_MESSAGE (-3) gives a message-only window: no taskbar button, no desktop
 	// presence, just something with a window procedure to receive the callback.
 	h, _, err := procCreateWindowEx.Call(0, uintptr(unsafe.Pointer(cls)),
-		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr("SmokeTrail"))),
+		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr("pingping"))),
 		0, 0, 0, 0, 0, uintptr(^uintptr(2)), 0, inst, 0)
 	if h == 0 {
 		return fmt.Errorf("CreateWindowEx: %w", err)
@@ -455,7 +455,7 @@ func (t *tray) showMenu() {
 	// A status line at the top, greyed and inert. Windows tray menus commonly
 	// lead with one, and here it answers the only question most people have
 	// without them opening a browser.
-	add(h, mfString|mfGrayed|mfDisabled, 0, "SmokeTrail - "+t.line(st))
+	add(h, mfString|mfGrayed|mfDisabled, 0, "pingping - "+t.line(st))
 	add(h, mfSeparator, 0, "")
 	add(h, mfString|mfDefault, idOpenConsole, m.OpenConsole)
 	add(h, mfString, idSettings, m.SettingsItem)
@@ -552,7 +552,7 @@ func (t *tray) command(id uint32) {
 		if v == "" {
 			v = version
 		}
-		body := "SmokeTrail " + v + "\n\n" + m.AboutTagline + "\n\n" +
+		body := "pingping " + v + "\n\n" + m.AboutTagline + "\n\n" +
 			m.AboutConsole + ":  " + t.consoleU + "\n" +
 			m.AboutStatus + ":  " + t.line(st) + "\n" +
 			m.AboutData + ":  " + dataDirForDisplay() + "\n\n" +
@@ -637,7 +637,7 @@ func (t *tray) watch(ctx context.Context) {
 		prev, first = st, false
 		// Red for anything an operator would want to act on: a target down, or a
 		// service that has stopped answering.
-		t.setState(!st.reachable || st.Down > 0, "SmokeTrail - "+t.line(st))
+		t.setState(!st.reachable || st.Down > 0, "pingping - "+t.line(st))
 		select {
 		case <-ctx.Done():
 			return
@@ -688,7 +688,7 @@ func rememberPort(p int) {
 	if p < 1 || p > 65535 {
 		return
 	}
-	k, _, err := registry.CreateKey(registry.CURRENT_USER, `SOFTWARE\SmokeTrail`, registry.SET_VALUE)
+	k, _, err := registry.CreateKey(registry.CURRENT_USER, `SOFTWARE\pingping`, registry.SET_VALUE)
 	if err != nil {
 		return
 	}
@@ -697,7 +697,7 @@ func rememberPort(p int) {
 }
 
 func rememberedPort() int {
-	k, err := registry.OpenKey(registry.CURRENT_USER, `SOFTWARE\SmokeTrail`, registry.QUERY_VALUE)
+	k, err := registry.OpenKey(registry.CURRENT_USER, `SOFTWARE\pingping`, registry.QUERY_VALUE)
 	if err != nil {
 		return 0
 	}
@@ -787,7 +787,7 @@ func startForegroundTray(consoleURL string, stop func()) {
 	}()
 }
 
-// runTrayCompanion is the `SmokeTrail tray` subcommand: the separate process that
+// runTrayCompanion is the `pingping tray` subcommand: the separate process that
 // accompanies an installed service. It exits quietly when there is nothing to
 // accompany, so a stale Startup shortcut does not leave an icon pointing at
 // software that has been uninstalled.

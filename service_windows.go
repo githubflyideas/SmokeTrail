@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	svcName = "SmokeTrail"
-	svcDesc = "SmokeTrail — link quality monitoring (latency distribution and packet loss)"
+	svcName = "pingping"
+	svcDesc = "pingping — link quality monitoring (latency distribution and packet loss)"
 
 	// LocalService is a low-privilege built-in account with no password. We can use
 	// it, rather than LocalSystem, only because the prober goes through
@@ -32,7 +32,7 @@ const (
 	// else. See docs/adr/0003-windows-service.md.
 	svcAccount = `NT AUTHORITY\LocalService`
 
-	// Windows grants a per-service SID, NT SERVICE\SmokeTrail, when the service
+	// Windows grants a per-service SID, NT SERVICE\pingping, when the service
 	// declares one. ACLing the data directory to that SID rather than to
 	// LocalService means every other LocalService process on the box — and there
 	// are many — cannot read or write our database. It costs one line and one
@@ -41,13 +41,13 @@ const (
 	svcSID = `NT SERVICE\` + svcName
 
 	// One name for the firewall rule, used to add it and to take it away again.
-	fwRule = "SmokeTrail console"
+	fwRule = "pingping console"
 
 	// Where install records what it chose. The tray process starts from a Startup
 	// shortcut with no arguments and has no other way to learn which port the
 	// service is listening on — hardcoding the default is exactly the bug that
 	// made the icon never appear.
-	regKey = `SOFTWARE\SmokeTrail`
+	regKey = `SOFTWARE\pingping`
 )
 
 // publishInstallInfo records the settings a separate process needs to find the
@@ -132,7 +132,7 @@ func runAsService(opt options) error {
 		defer l.Close()
 		// A service has no console. Everything the foreground build prints goes to
 		// the Application event log instead, so
-		// `Get-WinEvent -ProviderName SmokeTrail` tells the same story a terminal
+		// `Get-WinEvent -ProviderName pingping` tells the same story a terminal
 		// would — but with event IDs an administrator can filter on.
 		log.SetOutput(eventWriter{l})
 		log.SetFlags(0)
@@ -177,7 +177,7 @@ func (h *handler) Execute(_ []string, req <-chan svc.ChangeRequest, status chan<
 		return true, exitStartup
 	}
 	a.banner(portable)
-	evInfo(evStarted, "SmokeTrail %s started · %d targets · %s · data in %s",
+	evInfo(evStarted, "pingping %s started · %d targets · %s · data in %s",
 		version, len(a.run.Targets()), cfg.Listen, cfg.DataDir)
 
 	status <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
@@ -190,7 +190,7 @@ func (h *handler) Execute(_ []string, req <-chan svc.ChangeRequest, status chan<
 			// and the graceful HTTP drain complete.
 			status <- svc.Status{State: svc.StopPending, WaitHint: 8000}
 			a.shutdown()
-			evInfo(evStopped, "SmokeTrail stopped cleanly")
+			evInfo(evStopped, "pingping stopped cleanly")
 			return false, 0
 		default:
 			// Pause/Continue are not accepted, so anything else is the SCM being
@@ -223,7 +223,7 @@ func runServiceVerb(verb string, opt options) int {
 	if !isElevated() {
 		code, err := elevateSelf(verb, stripFlags(opt.rawArgs, "log-file"))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "smoketrail: %v\n", err)
+			fmt.Fprintf(os.Stderr, "pingping: %v\n", err)
 			return 1
 		}
 		return code
@@ -246,7 +246,7 @@ func doServiceVerb(verb string, opt options) int {
 }
 
 // installService registers the service with the flags it was given, so
-// `SmokeTrail install --port 9000 --days 300` is replayed verbatim on every boot.
+// `pingping install --port 9000 --days 300` is replayed verbatim on every boot.
 // No credential is ever passed here: a service command line lives in the registry
 // where every account can read it. The admin password is set in the console on
 // first run instead.
@@ -291,7 +291,7 @@ func installService(opt options) error {
 
 	if s, err := m.OpenService(svcName); err == nil {
 		s.Close()
-		return fmt.Errorf("service %s already exists — run `SmokeTrail uninstall` first", svcName)
+		return fmt.Errorf("service %s already exists — run `pingping uninstall` first", svcName)
 	}
 
 	// The data directory is pinned explicitly: a service starts with an arbitrary
@@ -348,7 +348,7 @@ func installService(opt options) error {
 	if out, err := run("netsh", "advfirewall", "firewall", "add", "rule",
 		"name="+fwRule, "dir=in", "action=allow", "protocol=TCP",
 		"localport="+port, "profile=private,domain",
-		"description=SmokeTrail web console"); err != nil {
+		"description=pingping web console"); err != nil {
 		log.Printf("warning: firewall rule not added — the console will only answer on this machine (%v %s)", err, out)
 	}
 

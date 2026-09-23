@@ -31,7 +31,7 @@ func main() {
 	log.SetFlags(log.LstdFlags)
 	args := os.Args[1:]
 
-	// Subcommands come before flag parsing, so `smoketrail install --port 9000`
+	// Subcommands come before flag parsing, so `pingping install --port 9000`
 	// reads the way a Windows admin expects rather than the way Go's flag package
 	// would otherwise insist on.
 	verb := ""
@@ -43,7 +43,7 @@ func main() {
 		printHelp(os.Stdout)
 		return
 	case "version":
-		fmt.Println("smoketrail", version)
+		fmt.Println("pingping", version)
 		return
 	case "selftest":
 		runSelftest(os.Stdout)
@@ -52,7 +52,7 @@ func main() {
 		args = args[1:]
 	case "":
 	default:
-		fmt.Fprintf(os.Stderr, "smoketrail: unknown command %q\nRun 'smoketrail help' for examples.\n", verb)
+		fmt.Fprintf(os.Stderr, "pingping: unknown command %q\nRun 'pingping help' for examples.\n", verb)
 		os.Exit(2)
 	}
 
@@ -62,7 +62,7 @@ func main() {
 			printHelp(os.Stdout)
 			return
 		}
-		fmt.Fprintf(os.Stderr, "smoketrail: %v\nRun 'smoketrail help' for examples.\n", err)
+		fmt.Fprintf(os.Stderr, "pingping: %v\nRun 'pingping help' for examples.\n", err)
 		os.Exit(2)
 	}
 
@@ -94,7 +94,7 @@ func parseOptions(args []string) (options, error) {
 	var opt options
 	opt.rawArgs = append([]string(nil), args...)
 
-	fs := flag.NewFlagSet("smoketrail", flag.ContinueOnError)
+	fs := flag.NewFlagSet("pingping", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	localOnly := fs.Bool("localhost", false, "bind 127.0.0.1 only")
 	days := fs.Int("days", 0, "days of history to keep (default 300)")
@@ -107,7 +107,7 @@ func parseOptions(args []string) (options, error) {
 		return opt, err
 	}
 	if *showVer {
-		fmt.Println("smoketrail", version)
+		fmt.Println("pingping", version)
 		os.Exit(0)
 	}
 	if rest := fs.Args(); len(rest) > 0 {
@@ -136,6 +136,16 @@ func configure(opt options) (*Config, bool, error) {
 	}
 	dir, portable := resolveDataDir(opt.data)
 	cfg.DataDir = dir
+
+	// Before anything opens the database, give a fogping- or SmokeTrail-era
+	// install its history back. This is a no-op once pingping.db exists, which is
+	// every run but the first after an upgrade.
+	if from, err := migrateLegacyData(dir, portable); err != nil {
+		return cfg, portable, err
+	} else if from != "" {
+		log.Printf("migrated database from %s", from)
+	}
+
 	return cfg, portable, nil
 }
 
@@ -164,6 +174,6 @@ func serveForeground(opt options) error {
 	case <-quit:
 	}
 	a.shutdown()
-	log.Printf("SmokeTrail shut down")
+	log.Printf("pingping shut down")
 	return nil
 }

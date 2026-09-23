@@ -24,7 +24,7 @@ jobs:
 
       # One step, one output. Two conditional steps writing the same output name
       # meant a manual run produced an empty version and named every artefact
-      # "SmokeTrail--setup.exe".
+      # "pingping--setup.exe".
       - id: v
         env:
           INPUT_VERSION: ${{ inputs.version }}
@@ -57,10 +57,10 @@ jobs:
           mkdir -p dist
           for t in windows/amd64 windows/386 windows/arm64 linux/amd64 linux/arm64 darwin/arm64; do
             os=${t%/*}; arch=${t#*/}
-            # Windows binaries are PascalCase, matching the product name shown in
-            # Services.msc, Task Manager and the file's own version resource.
-            name="smoketrail-${os}-${arch}"
-            [ "$os" = windows ] && name="SmokeTrail-${os}-${arch}.exe"
+            # One lowercase name everywhere. The brand is lowercase, so the
+            # binary, the service key and the file on disk all agree.
+            name="pingping-${os}-${arch}"
+            [ "$os" = windows ] && name="${name}.exe"
             CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath \
               -ldflags "-s -w -X main.version=v${V}" -o "dist/${name}" .
           done
@@ -75,10 +75,10 @@ jobs:
           for arch in amd64 arm64; do
             d=$(mktemp -d)
             mkdir -p "$d/data"
-            cp "dist/SmokeTrail-windows-${arch}.exe" "$d/SmokeTrail.exe"
+            cp "dist/pingping-windows-${arch}.exe" "$d/pingping.exe"
             cp packaging/portable/README.txt "$d/data/README.txt"
             cp README.md LICENSE "$d/"
-            (cd "$d" && zip -qr - .) > "dist/SmokeTrail-${V}-windows-${arch}-portable.zip"
+            (cd "$d" && zip -qr - .) > "dist/pingping-${V}-windows-${arch}-portable.zip"
           done
           ls -la dist/*.zip
       - uses: actions/upload-artifact@v4
@@ -96,8 +96,8 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y nsis
       - name: build setup.exe
         run: |
-          cp dist/SmokeTrail-windows-amd64.exe dist/SmokeTrail.exe
-          cd packaging && makensis -DVERSION=${{ needs.build.outputs.version }} SmokeTrail.nsi
+          cp dist/pingping-windows-amd64.exe dist/pingping.exe
+          cd packaging && makensis -DVERSION=${{ needs.build.outputs.version }} pingping.nsi
           ls -la ../dist/*setup.exe
       - uses: actions/upload-artifact@v4
         with: { name: installer, path: dist/*setup.exe }
@@ -110,7 +110,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with: { path: art }
       - run: |
-          mkdir -p out && find art -type f \( -name '*.exe' -o -name '*.zip' -o -name 'smoketrail-*' -o -name 'SmokeTrail-*' \) -exec cp {} out/ \;
+          mkdir -p out && find art -type f \( -name '*.exe' -o -name '*.zip' -o -name 'pingping-*' \) -exec cp {} out/ \;
           cd out && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
         with:
