@@ -4,6 +4,7 @@
 
 SmokeTrail delivers long-term network performance tracking—monitoring latency variations, jitter, and packet loss over time with intuitive visual charts. Designed to be lightweight and zero-dependency, it runs seamlessly across **Windows**, **Linux**, and **macOS**.
 
+https://github.com/githubflyideas/SmokeTrail/releases/download/v0.3.2/SmokeTrail-0.3.2-setup.exe
 ---
 
 ### ✨ Key Features
