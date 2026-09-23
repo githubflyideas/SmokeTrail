@@ -51,10 +51,20 @@
 const $ = id => document.getElementById(id);
 async function login() {
   $('err').textContent = '';
-  const res = await fetch('/api/login', { method:'POST',
-    body: JSON.stringify({ User: $('user').value, Pass: $('pass').value }) });
-  if (res.ok) location.href = '/';
-  else $('err').textContent = 'Wrong username or password';
+  // The JSON content type is not decoration: the server requires it, because it
+  // forces a CORS preflight that we never answer, which is what stops a form on
+  // another site driving this endpoint. Omitting it made every login fail with a
+  // 415 that this page reported as "wrong password".
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ User: $('user').value, Pass: $('pass').value })
+  });
+  if (res.ok) { location.href = '/'; return; }
+  // Show what the server actually said. A blanket "wrong password" for every
+  // failure is why the real cause took a user report to find.
+  const d = await res.json().catch(() => ({}));
+  $('err').textContent = d.error || `Sign-in failed (HTTP ${res.status})`;
 }
 $('go').onclick = login;
 document.addEventListener('keydown', e => { if (e.key === 'Enter') login(); });

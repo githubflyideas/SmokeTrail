@@ -9,10 +9,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/eventlog"
 	"golang.org/x/sys/windows/svc/mgr"
@@ -40,7 +42,51 @@ const (
 
 	// One name for the firewall rule, used to add it and to take it away again.
 	fwRule = "SmokeTrail console"
+
+	// Where install records what it chose. The tray process starts from a Startup
+	// shortcut with no arguments and has no other way to learn which port the
+	// service is listening on — hardcoding the default is exactly the bug that
+	// made the icon never appear.
+	regKey = `SOFTWARE\SmokeTrail`
 )
+
+// publishInstallInfo records the settings a separate process needs to find the
+// service. HKLM, because the tray may run as any signed-in user.
+func publishInstallInfo(port int, dataDir string) error {
+	k, _, err := registry.CreateKey(registry.LOCAL_MACHINE, regKey, registry.SET_VALUE)
+	if err != nil {
+		return err
+	}
+	defer k.Close()
+	if err := k.SetDWordValue("Port", uint32(port)); err != nil {
+		return err
+	}
+	return k.SetStringValue("DataDir", dataDir)
+}
+
+// installedPort reports the console port of an installed service, or 0.
+func installedPort() int {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, regKey, registry.QUERY_VALUE)
+	if err != nil {
+		return 0
+	}
+	defer k.Close()
+	v, _, err := k.GetIntegerValue("Port")
+	if err != nil || v == 0 || v > 65535 {
+		return 0
+	}
+	return int(v)
+}
+
+func installedDataDir() string {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, regKey, registry.QUERY_VALUE)
+	if err != nil {
+		return ""
+	}
+	defer k.Close()
+	v, _, _ := k.GetStringValue("DataDir")
+	return v
+}
 
 // Event IDs. A Windows administrator filters and alerts on these, so they are a
 // public interface: stable numbers, grouped by severity, never renumbered.
@@ -125,7 +171,7 @@ func (h *handler) Execute(_ []string, req <-chan svc.ChangeRequest, status chan<
 		evError(evConfigInvalid, "configuration rejected: %v", err)
 		return true, exitConfig
 	}
-	a, err := startApp(cfg)
+	a, err := startApp(cfg, h.opt.port)
 	if err != nil {
 		evError(evStartupFailed, "startup failed: %v", err)
 		return true, exitStartup
@@ -222,6 +268,20 @@ func installService(opt options) error {
 	if err := os.MkdirAll(cfg.DataDir, 0o755); err != nil {
 		return fmt.Errorf("create %s: %w", cfg.DataDir, err)
 	}
+	// The port is recorded in the database, not baked into the service command
+	// line. A flag on that command line would outrank the console setting, so
+	// changing the port in the console would silently do nothing.
+	if opt.port > 0 {
+		st, err := NewStore(cfg.DataDir, nil)
+		if err != nil {
+			return fmt.Errorf("open %s: %w", cfg.DataDir, err)
+		}
+		err = st.SetConsolePort(opt.port)
+		st.Close()
+		if err != nil {
+			return err
+		}
+	}
 
 	m, err := mgr.Connect()
 	if err != nil {
@@ -237,7 +297,7 @@ func installService(opt options) error {
 	// The data directory is pinned explicitly: a service starts with an arbitrary
 	// working directory, so a relative default would land somewhere surprising.
 	args := append([]string{"run", "--data", cfg.DataDir},
-		stripFlags(opt.rawArgs, "data", "log-file")...)
+		stripFlags(opt.rawArgs, "data", "log-file", "port")...)
 
 	s, err := m.CreateService(svcName, exe, mgr.Config{
 		DisplayName:      svcName,
@@ -300,6 +360,13 @@ func installService(opt options) error {
 		log.Printf("note: no Defender exclusion for %s (%v %s)", cfg.DataDir, err, out)
 	}
 
+	// Record the port before starting: the tray reads this, and an install that
+	// started fine but published nothing would leave the icon looking for 8518.
+	portNum, _ := strconv.Atoi(port)
+	if err := publishInstallInfo(portNum, cfg.DataDir); err != nil {
+		log.Printf("warning: could not record the console port for the tray icon: %v", err)
+	}
+
 	if err := s.Start(); err != nil {
 		return fmt.Errorf("service registered but would not start: %w", err)
 	}
@@ -337,6 +404,7 @@ func uninstallService() error {
 		"name="+fwRule); err != nil {
 		log.Printf("note: firewall rule: %v %s", err, out)
 	}
+	registry.DeleteKey(registry.LOCAL_MACHINE, regKey)
 	// The data directory is deliberately left in place: uninstalling the service is
 	// not a request to throw away the history it collected.
 	log.Printf("removed %s (data kept)", svcName)

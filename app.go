@@ -6,8 +6,13 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 )
+
+// logf is the one log entry point the store layer uses, so a future move to
+// structured logging touches one place.
+func logf(format string, v ...any) { log.Printf(format, v...) }
 
 // app is one running instance: store, probe runner, housekeeping and the web
 // console. Foreground mode and the Windows service both drive it through exactly
@@ -24,17 +29,25 @@ type app struct {
 // demoTarget is seeded into a brand-new database so the very first launch shows smoke.
 var demoTarget = TargetCfg{Name: "Demo", Type: "icmp", Host: "www.google.com", Pace: "fast"}
 
-// startApp brings everything up and returns once the console is listening.
-//
 // The listener is bound here rather than inside the serving goroutine on purpose:
 // a Windows service that reported Running while its port was already taken would
 // sit in the service list looking healthy with no console to open. Binding first
 // means that failure is a startup error the user sees, in the Event Log or on the
 // terminal, at the moment it happens.
-func startApp(cfg *Config) (*app, error) {
+// startApp brings everything up. portOverride is the --port flag, which wins over
+// the stored setting; 0 means "whatever the console was configured with".
+func startApp(cfg *Config, portOverride int) (*app, error) {
 	store, err := NewStore(cfg.DataDir, nil)
 	if err != nil {
 		return nil, fmt.Errorf("store init failed: %w", err)
+	}
+	// The port is a stored setting rather than a service command-line argument,
+	// so an operator can change it where they will look for it. A flag still wins,
+	// which is what keeps a portable copy and `--localhost` predictable.
+	if portOverride == 0 {
+		if p := store.ConsolePort(); p != 0 {
+			cfg.Listen = hostOf(cfg.Listen) + ":" + strconv.Itoa(p)
+		}
 	}
 	if n, err := store.TargetRows(); err == nil && n == 0 {
 		if _, err := store.CreateTarget(demoTarget); err == nil {

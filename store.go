@@ -90,6 +90,17 @@ CREATE TABLE IF NOT EXISTS rounds (
   PRIMARY KEY (target_id, t)
 ) WITHOUT ROWID;
 
+-- Accounts. Roles are deliberately only two: an admin can change what this host
+-- probes, a viewer can only look. That distinction matters because adding a
+-- target makes this machine send packets to an address of the requester's
+-- choosing, which is not something to hand out with a read-only URL.
+CREATE TABLE IF NOT EXISTS users (
+  name    TEXT PRIMARY KEY,
+  hash    TEXT NOT NULL,
+  role    TEXT NOT NULL DEFAULT 'admin',
+  created INTEGER NOT NULL
+) WITHOUT ROWID;
+
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -126,6 +137,9 @@ CREATE TABLE IF NOT EXISTS rounds_hourly (
 		ids:   map[string]int64{},
 		rings: map[string][]Round{},
 		start: time.Now(),
+	}
+	if err := s.migrateUsers(); err != nil {
+		return nil, err
 	}
 	for _, t := range targets {
 		if err := s.EnsureTarget(t); err != nil {

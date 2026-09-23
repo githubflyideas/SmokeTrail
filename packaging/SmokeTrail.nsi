@@ -125,8 +125,9 @@ Section "SmokeTrail" SecMain
   File /oname=SmokeTrail.exe "${SRCEXE}"
   File "..\README.md"
 
+  ; Port and DataDir are written by `SmokeTrail.exe install` itself, as the
+  ; values the tray process reads. One writer, one type.
   WriteRegStr HKLM "Software\${APPNAME}" "InstallDir" "$INSTDIR"
-  WriteRegStr HKLM "Software\${APPNAME}" "Port" "$Port"
 
   ; Add/Remove Programs. EstimatedSize keeps the list from showing a blank size.
   WriteRegStr   HKLM "${REGKEY}" "DisplayName"     "${APPNAME}"
@@ -173,14 +174,14 @@ SectionEnd
 Section "Uninstall"
   SetShellVarContext all
 
-  ; The tray holds the exe open, so it has to go before anything is deleted.
-  nsExec::ExecToLog 'taskkill /F /IM SmokeTrail.exe /FI "SERVICES eq"'
-  Pop $0
-  Sleep 500
-
-  ; Stop and deregister before deleting the binary that knows how to do it.
+  ; Deregister first — that stops the service cleanly, and it needs the binary
+  ; we are about to delete. Only then kill whatever is left, which is the tray
+  ; process holding the exe open.
   nsExec::ExecToLog '"$INSTDIR\SmokeTrail.exe" uninstall'
   Pop $0
+  nsExec::ExecToLog 'taskkill /F /IM SmokeTrail.exe'
+  Pop $0
+  Sleep 800
 
   Delete "$INSTDIR\SmokeTrail.exe"
   Delete "$INSTDIR\README.md"

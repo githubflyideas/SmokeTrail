@@ -144,7 +144,7 @@ func serveForeground(opt options) error {
 	if err != nil {
 		return err
 	}
-	a, err := startApp(cfg)
+	a, err := startApp(cfg, opt.port)
 	if err != nil {
 		return err
 	}

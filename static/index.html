@@ -249,6 +249,7 @@
       <span>This slot is for one VPS / IDC / network sponsor — your GIF here.</span>
       <span style="display:flex; gap:16px; align-items:center;">
         <a href="https://github.com/githubflyideas/SmokeTrail" target="_blank" rel="noopener">SmokeTrail on GitHub</a>
+        <a href="/settings">Settings</a>
         <a href="#" id="logoutBtn">Sign out</a>
       </span>
     </div>
@@ -517,7 +518,11 @@ document.querySelectorAll('#tfilter button').forEach(b => b.onclick = () => {
 
 // 版本号显示在赞助栏标题;保留期决定哪些时间窗有意义
 fetch('/api/version').then(r => r.json()).then(d => {
-  $('editBtn').style.display = '';
+  // The server refuses target writes from a viewer; hiding the button keeps the
+  // UI honest about it rather than letting someone discover the rule by 403.
+  fetch('/api/me').then(r => r.ok ? r.json() : null).then(me => {
+    if (me && me.role === 'admin') $('editBtn').style.display = '';
+  }).catch(() => {});
   const el = $('ver');
   if (el && d.version) el.textContent = 'v' + String(d.version).replace(/^v/, '');
   const keep = (d.retention_days || 0) * 1440;

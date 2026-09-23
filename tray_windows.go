@@ -11,12 +11,15 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"runtime"
+	"strconv"
+	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
 
 // The tray icon, written against Shell_NotifyIcon directly rather than pulling in
@@ -49,12 +52,21 @@ var trayIcons embed.FS
 const (
 	wmTrayIcon = 0x0400 + 1 // WM_APP + 1
 
-	idOpenConsole = 1001
-	idHideIcon    = 1002
-	idStopService = 1003
-	idExit        = 1004
+	idOpenConsole  = 1001
+	idHideIcon     = 1002
+	idStopService  = 1003
+	idStartService = 1004
+	idRestart      = 1005
+	idDataFolder   = 1006
+	idEventLog     = 1007
+	idExit         = 1008
+	idSettings     = 1009
+	idPassword     = 1010
+	idSelftest     = 1011
+	idUpdates      = 1012
+	idAbout        = 1013
 
-	trayPollInterval = 15 * time.Second
+	trayPollInterval = 10 * time.Second
 )
 
 var (
@@ -81,7 +93,35 @@ var (
 	procLoadCursor          = user32.NewProc("LoadCursorW")
 	procShellNotifyIcon     = shell32.NewProc("Shell_NotifyIconW")
 	procGetModuleHandle     = kernel32.NewProc("GetModuleHandleW")
+	procFreeConsole         = kernel32.NewProc("FreeConsole")
+	procGetConsoleWindow    = kernel32.NewProc("GetConsoleWindow")
+	procShowWindow          = user32.NewProc("ShowWindow")
+	procMessageBox          = user32.NewProc("MessageBoxW")
+	procRegisterWindowMsg   = user32.NewProc("RegisterWindowMessageW")
 )
+
+// taskbarCreated is broadcast by the shell when the notification area comes into
+// existence — at sign-in, and again every time Explorer restarts. Re-adding the
+// icon on it is not optional: without it, one Explorer crash removes the icon
+// permanently, and a Startup entry that races the shell never gets one at all.
+var taskbarCreated uint32
+
+// detachConsole gets rid of the console window a console-subsystem binary is
+// given when Explorer launches it. The tray has nothing to print and a black
+// window that appears at every sign-in is worse than no icon at all.
+//
+// The alternative is to build the whole program for the GUI subsystem and call
+// AttachConsole(ATTACH_PARENT_PROCESS) for the command-line verbs. That removes
+// even the brief flash, at the cost of `SmokeTrail selftest` returning to the
+// prompt before it finishes printing — a well-known quirk of that approach. For
+// an operations tool the command line is worth more than the last few
+// milliseconds of flicker, so: console subsystem, hidden here.
+func detachConsole() {
+	if h, _, _ := procGetConsoleWindow.Call(); h != 0 {
+		procShowWindow.Call(h, 0 /* SW_HIDE */)
+	}
+	procFreeConsole.Call()
+}
 
 type point struct{ X, Y int32 }
 
@@ -138,7 +178,13 @@ const (
 	nifMessage = 0x1
 	nifIcon    = 0x2
 	nifTip     = 0x4
+	nifInfo    = 0x10 // the balloon fields carry a notification
+
+	niifWarning = 0x2
+	niifInfo    = 0x1
 )
+
+const homepage = "https://github.com/githubflyideas/SmokeTrail"
 
 // tray is one running tray icon.
 type tray struct {
@@ -150,6 +196,36 @@ type tray struct {
 	cur      windows.Handle
 	tip      string
 	onExit   func()
+
+	mu     sync.Mutex
+	status health // what the last poll saw, shown in the menu
+}
+
+// health is the console's own view, fetched from the loopback-only endpoint. The
+// tray has no session, so counts are all it can have — and all it needs.
+type health struct {
+	Version    string `json:"version"`
+	NeedsSetup bool   `json:"needs_setup"`
+	Targets    int    `json:"targets"`
+	Down       int    `json:"down"`
+	Port       int    `json:"port"`
+	Configured int    `json:"port_configured"`
+	reachable  bool
+}
+
+func (h health) line() string {
+	switch {
+	case !h.reachable:
+		return "Service not responding"
+	case h.NeedsSetup:
+		return "Set the admin password"
+	case h.Targets == 0:
+		return "No targets yet"
+	case h.Down == 0:
+		return fmt.Sprintf("%d targets, all up", h.Targets)
+	default:
+		return fmt.Sprintf("%d targets, %d DOWN", h.Targets, h.Down)
+	}
 }
 
 // runTray owns the calling goroutine for the lifetime of the icon: a Win32 message
@@ -172,10 +248,19 @@ func runTray(ctx context.Context, consoleURL string, service bool, onExit func()
 	}
 	defer t.remove()
 
+	if m, _, _ := procRegisterWindowMsg.Call(
+		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr("TaskbarCreated")))); m != 0 {
+		taskbarCreated = uint32(m)
+	}
+
 	t.cur = t.iconOK
-	t.tip = "SmokeTrail — starting"
+	t.tip = "SmokeTrail - starting"
+	// A Startup entry runs while Explorer is still coming up, so the first add
+	// routinely fails. Keep trying rather than exiting: an icon that appears a few
+	// seconds late is the difference between working and "it never shows up".
 	if err := t.notify(nimAdd); err != nil {
-		return err
+		log.Printf("tray: the notification area is not ready yet (%v) — retrying", err)
+		go t.retryAdd(ctx)
 	}
 
 	go t.watch(ctx)
@@ -243,10 +328,40 @@ func (t *tray) notify(action uintptr) error {
 	return nil
 }
 
+// balloon raises a Windows notification. This is what a monitoring tray is
+// actually for: nobody watches a 16-pixel icon, but everybody notices a
+// notification the moment a link goes bad.
+func (t *tray) balloon(title, text string, warning bool) {
+	d := t.data()
+	d.Flags |= nifInfo
+	d.InfoFlags = niifInfo
+	if warning {
+		d.InfoFlags = niifWarning
+	}
+	copyUTF16(d.InfoTitle[:], title)
+	copyUTF16(d.Info[:], text)
+	procShellNotifyIcon.Call(nimModify, uintptr(unsafe.Pointer(d)))
+}
+
 func (t *tray) remove() {
 	procShellNotifyIcon.Call(nimDelete, uintptr(unsafe.Pointer(t.data())))
 	if t.hwnd != 0 {
 		procDestroyWindow.Call(uintptr(t.hwnd))
+	}
+}
+
+// retryAdd keeps offering the icon to a shell that was not listening yet.
+func (t *tray) retryAdd(ctx context.Context) {
+	for i := 0; i < 150; i++ { // ~5 minutes, then leave it to TaskbarCreated
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(2 * time.Second):
+		}
+		if t.notify(nimAdd) == nil {
+			log.Printf("tray: icon added")
+			return
+		}
 	}
 }
 
@@ -259,10 +374,19 @@ func (t *tray) setState(bad bool, tip string) {
 		return
 	}
 	t.cur, t.tip = icon, tip
-	t.notify(nimModify)
+	if t.notify(nimModify) != nil {
+		// Modify fails when the icon is not registered — which is the state a
+		// shell that was not ready leaves us in. Treat it as a cue to add.
+		t.notify(nimAdd)
+	}
 }
 
 func (t *tray) wndProc(hwnd windows.Handle, m uint32, wparam, lparam uintptr) uintptr {
+	if taskbarCreated != 0 && m == taskbarCreated {
+		// The shell restarted. Our icon went with it; put it back.
+		t.notify(nimAdd)
+		return 0
+	}
 	switch m {
 	case wmTrayIcon:
 		switch uint32(lparam) {
@@ -290,18 +414,57 @@ func (t *tray) showMenu() {
 	}
 	defer procDestroyMenu.Call(h)
 
-	const mfString, mfSeparator, mfDefault = 0x0, 0x800, 0x1000
+	const (
+		mfString    = 0x0
+		mfGrayed    = 0x1
+		mfDisabled  = 0x2
+		mfSeparator = 0x800
+		mfDefault   = 0x1000
+	)
 	add := func(flags, id uintptr, text string) {
 		procAppendMenu.Call(h, flags, id,
 			uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(text))))
 	}
+
+	t.mu.Lock()
+	st := t.status
+	t.mu.Unlock()
+
+	// A status line at the top, greyed and inert. Windows tray menus commonly
+	// lead with one, and here it saves opening a browser to answer the only
+	// question most people have.
+	add(mfString|mfGrayed|mfDisabled, 0, "SmokeTrail - "+st.line())
+	add(mfSeparator, 0, "")
 	add(mfString|mfDefault, idOpenConsole, "Open console")
+	add(mfString, idSettings, "Settings, accounts and port...")
+	add(mfString, idPassword, "Change my password...")
+
+	add(mfSeparator, 0, "")
+	add(mfString, idDataFolder, "Open data folder")
+	add(mfString, idSelftest, "Run clock selftest...")
+
+	if t.service {
+		add(mfSeparator, 0, "")
+		if st.reachable {
+			// Restart is above stop because it is the common case: a port change
+			// in the console needs exactly this, and it repairs the firewall rule
+			// on the way through.
+			add(mfString, idRestart, "Restart service (applies a new port)")
+			add(mfString, idStopService, "Stop service")
+		} else {
+			add(mfString, idStartService, "Start service")
+		}
+		add(mfString, idEventLog, "View event log")
+	}
+
+	add(mfSeparator, 0, "")
+	add(mfString, idUpdates, "Check for updates")
+	add(mfString, idAbout, "About SmokeTrail")
 	add(mfSeparator, 0, "")
 	if t.service {
 		// Two separate, explicitly worded actions. "Exit" would be a lie here:
 		// the service keeps probing whatever this process does.
 		add(mfString, idHideIcon, "Hide this icon until next sign-in")
-		add(mfString, idStopService, "Stop the SmokeTrail service")
 	} else {
 		add(mfString, idExit, "Exit SmokeTrail")
 	}
@@ -323,16 +486,55 @@ func (t *tray) command(id uint32) {
 		t.openConsole()
 	case idHideIcon:
 		procPostQuitMessage.Call(0)
+	case idDataFolder:
+		t.open(dataDirForDisplay())
+	case idEventLog:
+		// The service's own log, filtered to us. Opening Event Viewer at the
+		// right place beats telling somebody to navigate to it.
+		runElevated("cmd.exe", "/c start "+`""`+" eventvwr.msc")
+	case idStartService:
+		runElevated("cmd.exe", "/c net start "+svcName)
 	case idStopService:
-		// `net stop` rather than the SCM API: stopping needs elevation, and this
-		// way Windows shows its own consent prompt instead of us inventing one.
-		go func() {
-			cmd := exec.Command("cmd", "/c", "net stop "+svcName)
-			cmd.SysProcAttr = &windows.SysProcAttr{HideWindow: true}
-			if out, err := cmd.CombinedOutput(); err != nil {
-				log.Printf("stop service: %v %s", err, out)
-			}
-		}()
+		runElevated("cmd.exe", "/c net stop "+svcName)
+	case idRestart:
+		// Also re-point the firewall rule, because the reason to restart is
+		// usually that the port changed in the console.
+		runElevated("cmd.exe", "/c net stop "+svcName+
+			" & net start "+svcName)
+	case idSettings:
+		t.open(t.consoleU + "/settings")
+	case idPassword:
+		t.open(t.consoleU + "/settings#password")
+	case idUpdates:
+		t.open(homepage + "/releases")
+	case idSelftest:
+		// A visible console is right here: it is a deliberate diagnostic the
+		// operator asked for and wants to read.
+		if exe, err := os.Executable(); err == nil {
+			windows.ShellExecute(0, nil,
+				windows.StringToUTF16Ptr("cmd.exe"),
+				windows.StringToUTF16Ptr(`/k "`+exe+`" selftest`),
+				nil, windows.SW_SHOWNORMAL)
+		}
+	case idAbout:
+		t.mu.Lock()
+		st := t.status
+		t.mu.Unlock()
+		v := st.Version
+		if v == "" {
+			v = version
+		}
+		body := "SmokeTrail " + v + "\n\n" +
+			"Latency distribution and packet loss, kept as a distribution\n" +
+			"rather than an average.\n\n" +
+			"Console:  " + t.consoleU + "\n" +
+			"Status:   " + st.line() + "\n" +
+			"Data:     " + dataDirForDisplay() + "\n\n" +
+			homepage + "\n\nMIT licensed."
+		go procMessageBox.Call(0,
+			uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(body))),
+			uintptr(unsafe.Pointer(windows.StringToUTF16Ptr("About SmokeTrail"))),
+			0x40 /* MB_ICONINFORMATION */)
 	case idExit:
 		if t.onExit != nil {
 			t.onExit()
@@ -341,9 +543,33 @@ func (t *tray) command(id uint32) {
 	}
 }
 
-func (t *tray) openConsole() {
+// runElevated asks Windows for consent rather than inventing our own prompt, and
+// rather than failing with an access-denied the user cannot act on. Controlling a
+// service needs elevation; the tray itself deliberately does not have it.
+func runElevated(exe, args string) {
+	go func() {
+		if err := windows.ShellExecute(0,
+			windows.StringToUTF16Ptr("runas"),
+			windows.StringToUTF16Ptr(exe),
+			windows.StringToUTF16Ptr(args),
+			nil, windows.SW_HIDE); err != nil && err != windows.ERROR_CANCELLED {
+			log.Printf("elevated %s: %v", exe, err)
+		}
+	}()
+}
+
+func (t *tray) openConsole() { t.open(t.consoleU) }
+
+func (t *tray) open(target string) {
 	windows.ShellExecute(0, windows.StringToUTF16Ptr("open"),
-		windows.StringToUTF16Ptr(t.consoleU), nil, nil, windows.SW_SHOWNORMAL)
+		windows.StringToUTF16Ptr(target), nil, nil, windows.SW_SHOWNORMAL)
+}
+
+func dataDirForDisplay() string {
+	if d := installedDataDir(); d != "" {
+		return d
+	}
+	return systemDataDir()
 }
 
 // watch keeps the icon honest. It asks the console the same question a browser
@@ -353,9 +579,44 @@ func (t *tray) watch(ctx context.Context) {
 	client := &http.Client{Timeout: 4 * time.Second}
 	tick := time.NewTicker(trayPollInterval)
 	defer tick.Stop()
+	var prev health
+	first := true
 	for {
-		bad, tip := probeStatus(client, t.consoleU)
-		t.setState(bad, tip)
+		st := fetchHealth(client, t.consoleU)
+		if !st.reachable {
+			// The port may have been changed in the console and the service
+			// restarted onto it. Go and look before reporting a failure.
+			if u, found := t.findConsole(client); found {
+				t.consoleU = u
+				rememberPort(portOfURL(u))
+				st = fetchHealth(client, u)
+			}
+		}
+		t.mu.Lock()
+		t.status = st
+		t.mu.Unlock()
+
+		// Notify on transitions only. A balloon every poll would be noise, and
+		// one at startup would fire on every sign-in.
+		if !first {
+			switch {
+			case prev.reachable && !st.reachable:
+				t.balloon("SmokeTrail stopped responding",
+					"The service is not answering on "+t.consoleU+".", true)
+			case !prev.reachable && st.reachable:
+				t.balloon("SmokeTrail is back", st.line(), false)
+			case st.reachable && st.Down > prev.Down:
+				t.balloon("Link down",
+					fmt.Sprintf("%d of %d targets are not responding.", st.Down, st.Targets), true)
+			case st.reachable && prev.Down > 0 && st.Down == 0:
+				t.balloon("Links recovered",
+					fmt.Sprintf("All %d targets are responding again.", st.Targets), false)
+			}
+		}
+		prev, first = st, false
+		// Red for anything an operator would want to act on: a target down, or a
+		// service that has stopped answering.
+		t.setState(!st.reachable || st.Down > 0, "SmokeTrail - "+st.line())
 		select {
 		case <-ctx.Done():
 			return
@@ -364,24 +625,81 @@ func (t *tray) watch(ctx context.Context) {
 	}
 }
 
-func probeStatus(c *http.Client, base string) (bad bool, tip string) {
-	resp, err := c.Get(base + "/api/version")
+// findConsole looks for the service on the ports it could plausibly be on: the
+// one the console last told us it was moving to, the one recorded at install, the
+// one that worked last time, and the default. Cheap, and it means a port change
+// does not orphan the icon.
+func (t *tray) findConsole(c *http.Client) (string, bool) {
+	t.mu.Lock()
+	pending := t.status.Configured
+	t.mu.Unlock()
+
+	seen := map[int]bool{}
+	for _, p := range []int{pending, rememberedPort(), installedPort(), 8518} {
+		if p < 1 || p > 65535 || seen[p] {
+			continue
+		}
+		seen[p] = true
+		u := fmt.Sprintf("http://localhost:%d", p)
+		if u == t.consoleU {
+			continue
+		}
+		if h := fetchHealth(c, u); h.reachable {
+			log.Printf("tray: console found on port %d", p)
+			return u, true
+		}
+	}
+	return "", false
+}
+
+func portOfURL(u string) int {
+	i := strings.LastIndex(u, ":")
+	if i < 0 {
+		return 0
+	}
+	n, _ := strconv.Atoi(u[i+1:])
+	return n
+}
+
+// The last port that worked, per user. HKCU because the tray runs unelevated and
+// cannot write the machine-wide key the installer used.
+func rememberPort(p int) {
+	if p < 1 || p > 65535 {
+		return
+	}
+	k, _, err := registry.CreateKey(registry.CURRENT_USER, `SOFTWARE\SmokeTrail`, registry.SET_VALUE)
 	if err != nil {
-		return true, "SmokeTrail — not responding"
+		return
+	}
+	defer k.Close()
+	k.SetDWordValue("LastPort", uint32(p))
+}
+
+func rememberedPort() int {
+	k, err := registry.OpenKey(registry.CURRENT_USER, `SOFTWARE\SmokeTrail`, registry.QUERY_VALUE)
+	if err != nil {
+		return 0
+	}
+	defer k.Close()
+	v, _, err := k.GetIntegerValue("LastPort")
+	if err != nil {
+		return 0
+	}
+	return int(v)
+}
+
+func fetchHealth(c *http.Client, base string) health {
+	resp, err := c.Get(base + "/api/health")
+	if err != nil {
+		return health{}
 	}
 	defer resp.Body.Close()
-	var v struct {
-		Version    string `json:"version"`
-		NeedsSetup bool   `json:"needs_setup"`
+	var h health
+	if json.NewDecoder(resp.Body).Decode(&h) != nil {
+		return health{}
 	}
-	json.NewDecoder(resp.Body).Decode(&v)
-	if v.NeedsSetup {
-		return false, "SmokeTrail — click to create the admin account"
-	}
-	// Targets need a session, which the tray does not have. Reaching the console
-	// at all is the honest limit of what an unauthenticated poll can tell us, so
-	// that is all the tooltip claims.
-	return false, "SmokeTrail " + v.Version + " — running"
+	h.reachable = true
+	return h
 }
 
 // loadEmbeddedIcon turns an .ico file into an HICON. CreateIconFromResourceEx
@@ -453,28 +771,53 @@ func startForegroundTray(consoleURL string, stop func()) {
 // accompany, so a stale Startup shortcut does not leave an icon pointing at
 // software that has been uninstalled.
 func runTrayCompanion(opt options) int {
-	cfg, _, err := configure(opt)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "smoketrail: %v\n", err)
-		return 2
+	detachConsole()
+
+	// The Startup shortcut carries no arguments, so the port has to come from
+	// what install recorded. Defaulting to 8518 here is what made the icon
+	// silently never appear on an instance installed on any other port.
+	port := opt.port
+	if port == 0 {
+		port = rememberedPort()
 	}
-	url := "http://localhost" + portOf(cfg.Listen)
+	if port == 0 {
+		port = installedPort()
+	}
+	if port == 0 {
+		cfg, _, err := configure(opt)
+		if err != nil {
+			return 2
+		}
+		port = portNumber(cfg.Listen)
+	}
+	url := fmt.Sprintf("http://localhost:%d", port)
+
+	// The service may still be starting — it is registered delayed-auto-start, so
+	// at sign-in it frequently is. Wait, rather than exiting and leaving no icon.
 	client := &http.Client{Timeout: 4 * time.Second}
-	// Give a service that is still starting a chance before giving up.
-	ok := false
-	for i := 0; i < 20; i++ {
-		if _, err := client.Get(url + "/api/version"); err == nil {
-			ok = true
+	for i := 0; ; i++ {
+		if _, err := client.Get(url + "/api/health"); err == nil {
+			break
+		}
+		if i >= 40 { // ~2 minutes
+			// Show the icon anyway, in its "not responding" state. An icon that
+			// says something is wrong is far more useful than no icon, which is
+			// indistinguishable from software that was never installed.
 			break
 		}
 		time.Sleep(3 * time.Second)
-	}
-	if !ok {
-		return 0
 	}
 	if err := runTray(context.Background(), url, true, nil); err != nil {
 		log.Printf("tray: %v", err)
 		return 1
 	}
 	return 0
+}
+
+func portNumber(listen string) int {
+	n, _ := strconv.Atoi(strings.TrimPrefix(portOf(listen), ":"))
+	if n == 0 {
+		n = 8518
+	}
+	return n
 }

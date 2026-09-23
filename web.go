@@ -8,9 +8,11 @@ import (
 	"errors"
 	"log"
 	"mime"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -28,30 +30,43 @@ type sessions struct {
 
 type session struct {
 	user string
+	role string
 	exp  time.Time
 }
 
 func newSessions() *sessions { return &sessions{m: map[string]session{}} }
 
-func (s *sessions) issue(user string) string {
+func (s *sessions) issue(user, role string) string {
 	b := make([]byte, 32)
 	rand.Read(b)
 	tok := hex.EncodeToString(b)
 	s.mu.Lock()
-	s.m[tok] = session{user: user, exp: time.Now().Add(7 * 24 * time.Hour)}
+	s.m[tok] = session{user: user, role: role, exp: time.Now().Add(7 * 24 * time.Hour)}
 	s.mu.Unlock()
 	return tok
 }
 
-func (s *sessions) user(tok string) (string, bool) {
+func (s *sessions) get(tok string) (session, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sn, ok := s.m[tok]
 	if !ok || time.Now().After(sn.exp) {
 		delete(s.m, tok)
-		return "", false
+		return session{}, false
 	}
-	return sn.user, true
+	return sn, true
+}
+
+// dropUser invalidates the sessions of one account — used when its password
+// changes or it is deleted, so a cookie never outlives the credential behind it.
+func (s *sessions) dropUser(name string) {
+	s.mu.Lock()
+	for tok, sn := range s.m {
+		if sn.user == name {
+			delete(s.m, tok)
+		}
+	}
+	s.mu.Unlock()
 }
 
 func (s *sessions) drop(tok string) {
@@ -81,10 +96,8 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 		}
 		return c.Value
 	}
-	authed := func(r *http.Request) bool {
-		_, ok := sess.user(token(r))
-		return ok
-	}
+	current := func(r *http.Request) (session, bool) { return sess.get(token(r)) }
+	authed := func(r *http.Request) bool { _, ok := current(r); return ok }
 	setCookie := func(w http.ResponseWriter, tok string, maxAge int) {
 		http.SetCookie(w, &http.Cookie{
 			Name: sessionCookie, Value: tok, Path: "/",
@@ -115,6 +128,19 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 		return guard(func(w http.ResponseWriter, r *http.Request) {
 			if !sameOrigin(r) {
 				jsonErr(w, http.StatusForbidden, "cross-origin request refused")
+				return
+			}
+			h(w, r)
+		})
+	}
+	// admin wraps a write that changes what this host probes, or who may sign in.
+	// A viewer reaching one gets 403 rather than 404: they are authenticated, and
+	// pretending the endpoint does not exist would only make the UI confusing.
+	admin := func(h http.HandlerFunc) http.HandlerFunc {
+		return write(func(w http.ResponseWriter, r *http.Request) {
+			sn, _ := current(r)
+			if sn.role != RoleAdmin {
+				jsonErr(w, http.StatusForbidden, "this account is read-only")
 				return
 			}
 			h(w, r)
@@ -159,6 +185,17 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 		}
 		page("setup.html")(w, r)
 	})
+	mux.HandleFunc("/settings", func(w http.ResponseWriter, r *http.Request) {
+		if store.NeedsSetup() {
+			http.Redirect(w, r, "/setup", http.StatusFound)
+			return
+		}
+		if !authed(r) {
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+		page("settings.html")(w, r)
+	})
 	mux.Handle("/static/", http.FileServer(http.FS(staticFS)))
 
 	// ---- first run ----
@@ -189,21 +226,12 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 			jsonErr(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		h, err := hashPassword(body.Pass)
-		if err != nil {
-			jsonErr(w, http.StatusInternalServerError, "hash failed")
-			return
-		}
-		if err := store.SetSetting(settingAdminUser, body.User); err != nil {
-			jsonErr(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		if err := store.SetSetting(settingAdminHash, h); err != nil {
+		if err := store.CreateUser(body.User, body.Pass, RoleAdmin); err != nil {
 			jsonErr(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		log.Printf("console: admin account %q created", body.User)
-		setCookie(w, sess.issue(body.User), 7*24*3600)
+		setCookie(w, sess.issue(body.User, RoleAdmin), 7*24*3600)
 		writeJSON(w, map[string]bool{"ok": true})
 	})
 
@@ -212,17 +240,16 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 		if !decodeJSON(w, r, &body) {
 			return
 		}
-		user, _ := store.Setting(settingAdminUser)
-		hash, ok := store.Setting(settingAdminHash)
-		if !ok || body.User != user || !verifyPassword(hash, body.Pass) {
+		role, ok := store.Authenticate(body.User, body.Pass)
+		if !ok {
 			// A fixed delay makes online guessing boring without needing a lockout
 			// that an attacker could use to lock the operator out.
 			time.Sleep(time.Second)
-			log.Printf("console: failed login from %s", r.RemoteAddr)
+			log.Printf("console: failed login for %q from %s", body.User, r.RemoteAddr)
 			jsonErr(w, http.StatusUnauthorized, "wrong username or password")
 			return
 		}
-		setCookie(w, sess.issue(user), 7*24*3600)
+		setCookie(w, sess.issue(body.User, role), 7*24*3600)
 		writeJSON(w, map[string]bool{"ok": true})
 	})
 
@@ -232,36 +259,191 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 		writeJSON(w, map[string]bool{"ok": true})
 	})
 
+	// Changing your own password needs the old one. Viewers may do this too: it is
+	// their account.
 	mux.HandleFunc("POST /api/password", write(func(w http.ResponseWriter, r *http.Request) {
+		sn, _ := current(r)
 		var body struct{ Old, New string }
 		if !decodeJSON(w, r, &body) {
 			return
 		}
-		hash, _ := store.Setting(settingAdminHash)
-		if !verifyPassword(hash, body.Old) {
+		if _, ok := store.Authenticate(sn.user, body.Old); !ok {
 			time.Sleep(time.Second)
 			jsonErr(w, http.StatusUnauthorized, "current password is wrong")
 			return
 		}
-		if err := validatePassword(body.New); err != nil {
+		if err := store.SetPassword(sn.user, body.New); err != nil {
 			jsonErr(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		h, err := hashPassword(body.New)
-		if err != nil {
-			jsonErr(w, http.StatusInternalServerError, "hash failed")
-			return
-		}
-		if err := store.SetSetting(settingAdminHash, h); err != nil {
-			jsonErr(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		sess.dropAll()
-		log.Printf("console: admin password changed; all sessions invalidated")
+		sess.dropUser(sn.user)
+		log.Printf("console: %q changed their password; their sessions were invalidated", sn.user)
 		writeJSON(w, map[string]bool{"ok": true})
 	}))
 
+	// ---- accounts and settings ----
+
+	// Who am I, and what may I do. The console asks this first and hides what the
+	// answer says is unavailable — the server still enforces it, the UI just stops
+	// offering buttons that would 403.
+	mux.HandleFunc("GET /api/me", guard(func(w http.ResponseWriter, r *http.Request) {
+		sn, _ := current(r)
+		writeJSON(w, map[string]any{
+			"user":           sn.user,
+			"role":           sn.role,
+			"version":        version,
+			"data_dir":       cfg.DataDir,
+			"listen":         cfg.Listen,
+			"port":           portNum(cfg.Listen),
+			"retention_days": cfg.RetentionDays,
+		})
+	}))
+
+	mux.HandleFunc("GET /api/users", guard(func(w http.ResponseWriter, r *http.Request) {
+		if sn, _ := current(r); sn.role != RoleAdmin {
+			jsonErr(w, http.StatusForbidden, "this account is read-only")
+			return
+		}
+		us, err := store.Users()
+		if err != nil {
+			jsonErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if us == nil {
+			us = []User{}
+		}
+		writeJSON(w, us)
+	}))
+
+	userErr := func(w http.ResponseWriter, err error) bool {
+		switch {
+		case err == nil:
+			return false
+		case errors.Is(err, errUserExists), errors.Is(err, errLastAdmin):
+			jsonErr(w, http.StatusConflict, err.Error())
+		case errors.Is(err, errUserNotFound):
+			jsonErr(w, http.StatusNotFound, err.Error())
+		default:
+			jsonErr(w, http.StatusBadRequest, err.Error())
+		}
+		return true
+	}
+
+	mux.HandleFunc("POST /api/users", admin(func(w http.ResponseWriter, r *http.Request) {
+		var b struct{ Name, Pass, Role string }
+		if !decodeJSON(w, r, &b) {
+			return
+		}
+		if b.Role == "" {
+			b.Role = RoleViewer // the safe default: looking, not changing
+		}
+		if userErr(w, store.CreateUser(b.Name, b.Pass, b.Role)) {
+			return
+		}
+		log.Printf("console: account %q created with role %s", b.Name, b.Role)
+		writeJSON(w, map[string]bool{"ok": true})
+	}))
+
+	mux.HandleFunc("POST /api/users/{name}/password", admin(func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		var b struct{ Pass string }
+		if !decodeJSON(w, r, &b) {
+			return
+		}
+		if userErr(w, store.SetPassword(name, b.Pass)) {
+			return
+		}
+		sess.dropUser(name)
+		log.Printf("console: password reset for %q; their sessions were invalidated", name)
+		writeJSON(w, map[string]bool{"ok": true})
+	}))
+
+	mux.HandleFunc("POST /api/users/{name}/role", admin(func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		var b struct{ Role string }
+		if !decodeJSON(w, r, &b) {
+			return
+		}
+		if userErr(w, store.SetRole(name, b.Role)) {
+			return
+		}
+		// The role is carried in the session, so it has to be re-issued.
+		sess.dropUser(name)
+		log.Printf("console: %q is now %s", name, b.Role)
+		writeJSON(w, map[string]bool{"ok": true})
+	}))
+
+	mux.HandleFunc("DELETE /api/users/{name}", admin(func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		if sn, _ := current(r); name == sn.user {
+			jsonErr(w, http.StatusConflict, "you cannot delete the account you are signed in with")
+			return
+		}
+		if userErr(w, store.DeleteUser(name)) {
+			return
+		}
+		sess.dropUser(name)
+		log.Printf("console: account %q deleted", name)
+		writeJSON(w, map[string]bool{"ok": true})
+	}))
+
+	// The console port is a stored setting, not a service argument, so it can be
+	// changed here. It cannot take effect until the listener is rebuilt, and
+	// rebuilding it underneath the request that asked would drop that request — so
+	// this records the intent and the answer says what to do next.
+	mux.HandleFunc("POST /api/settings/port", admin(func(w http.ResponseWriter, r *http.Request) {
+		var b struct{ Port int }
+		if !decodeJSON(w, r, &b) {
+			return
+		}
+		if err := store.SetConsolePort(b.Port); err != nil {
+			jsonErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		log.Printf("console: port will be %d after a restart", b.Port)
+		writeJSON(w, map[string]any{
+			"ok":      true,
+			"port":    b.Port,
+			"applied": false,
+			"note":    "Restart the SmokeTrail service to apply it — the tray icon can do that, and it fixes the firewall rule at the same time.",
+		})
+	}))
+
 	// ---- read ----
+
+	// Health is what the notification-area icon polls. It is unauthenticated,
+	// because the tray has no session and cannot get one — so it is restricted to
+	// loopback and carries counts only. No hostnames: the list of what a machine
+	// watches is a map of the network, and that stays behind the login.
+	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
+		if !isLoopback(r) {
+			http.NotFound(w, r)
+			return
+		}
+		targets := run.Targets()
+		down := 0
+		since := time.Now().Add(-time.Hour).Unix()
+		for _, t := range targets {
+			if rec := store.Recent(t.Name, since); len(rec) > 0 && rec[len(rec)-1].R == 0 {
+				down++
+			}
+		}
+		// Both ports, so the tray can follow a change it did not make. It polls
+		// the effective one; if configured differs, a restart is pending and the
+		// tray knows where to look afterwards.
+		configured := store.ConsolePort()
+		if configured == 0 {
+			configured = portNum(cfg.Listen)
+		}
+		writeJSON(w, map[string]any{
+			"version":         version,
+			"needs_setup":     store.NeedsSetup(),
+			"targets":         len(targets),
+			"down":            down,
+			"port":            portNum(cfg.Listen),
+			"port_configured": configured,
+		})
+	})
 
 	mux.HandleFunc("/api/version", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{
@@ -367,13 +549,13 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 		}
 	}
 
-	mux.HandleFunc("POST /api/targets", write(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/targets", admin(func(w http.ResponseWriter, r *http.Request) {
 		if t, ok := decodeTarget(w, r); ok {
 			t, err := store.CreateTarget(t)
 			done(w, t, err, "created")
 		}
 	}))
-	mux.HandleFunc("PUT /api/targets/{id}", write(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("PUT /api/targets/{id}", admin(func(w http.ResponseWriter, r *http.Request) {
 		id, ok := targetID(w, r)
 		if !ok {
 			return
@@ -384,7 +566,7 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 			done(w, t, err, "updated")
 		}
 	}))
-	mux.HandleFunc("DELETE /api/targets/{id}", write(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("DELETE /api/targets/{id}", admin(func(w http.ResponseWriter, r *http.Request) {
 		id, ok := targetID(w, r)
 		if !ok {
 			return
@@ -411,6 +593,23 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 		return false
 	}
 	return true
+}
+
+// portNum extracts the numeric port from a listen address.
+func portNum(listen string) int {
+	n, _ := strconv.Atoi(strings.TrimPrefix(portOf(listen), ":"))
+	return n
+}
+
+// isLoopback reports whether the request came from this machine. Used only to
+// scope the unauthenticated health endpoint; everything else goes through auth.
+func isLoopback(r *http.Request) bool {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // sameOrigin rejects browser requests whose Origin doesn't match the Host they were

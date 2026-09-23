@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,"><title>Settings — SmokeTrail</title>
+<style>
+:root{color-scheme:dark;--bg:#0e1116;--card:#161b22;--line:#272e38;--fg:#e6edf3;
+ --dim:#8b949e;--acc:#3fb950;--err:#f85149;--warn:#d29922}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+ font:14px/1.55 -apple-system,"Segoe UI",system-ui,sans-serif}
+header{display:flex;align-items:center;gap:14px;padding:18px 24px;border-bottom:1px solid var(--line)}
+header .mark{font:600 18px ui-monospace,Consolas,monospace;letter-spacing:.5px}
+header a{color:var(--dim);text-decoration:none;font-size:13px}
+header a:hover{color:var(--fg)}
+header .sp{flex:1}
+main{max-width:860px;margin:0 auto;padding:24px 24px 64px}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;
+ padding:20px 22px;margin-bottom:18px}
+h2{margin:0 0 4px;font-size:15px;font-weight:600}
+h2+p.sub{margin:0 0 18px;color:var(--dim);font-size:13px}
+label{display:block;margin:12px 0 5px;font-size:12px;color:var(--dim)}
+input,select{padding:8px 10px;background:#0e1116;border:1px solid var(--line);
+ border-radius:6px;color:var(--fg);font:inherit;min-width:0}
+input:focus,select:focus{outline:none;border-color:var(--acc)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.row>div{flex:1;min-width:150px}
+.row input,.row select{width:100%}
+button{padding:8px 14px;background:var(--acc);border:0;border-radius:6px;
+ color:#06130a;font:600 13px inherit;cursor:pointer;white-space:nowrap}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--fg);font-weight:500}
+button.danger{background:transparent;border:1px solid var(--err);color:var(--err);font-weight:500}
+button:disabled{opacity:.5;cursor:default}
+table{width:100%;border-collapse:collapse;margin-top:6px}
+th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+ color:var(--dim);font-weight:500;padding:8px 8px 8px 0;border-bottom:1px solid var(--line)}
+td{padding:9px 8px 9px 0;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.tag{font-size:11px;padding:2px 7px;border-radius:99px;border:1px solid var(--line);color:var(--dim)}
+.tag.admin{color:var(--acc);border-color:#1f6f33}
+.msg{margin-top:12px;font-size:13px;min-height:19px}
+.msg.err{color:var(--err)} .msg.ok{color:var(--acc)} .msg.warn{color:var(--warn)}
+dl{display:grid;grid-template-columns:auto 1fr;gap:8px 18px;margin:0;font-size:13px}
+dt{color:var(--dim)} dd{margin:0;font-family:ui-monospace,Consolas,monospace;word-break:break-all}
+.hide{display:none}
+</style></head><body>
+<header>
+  <div class="mark">SmokeTrail</div>
+  <a href="/">&larr; back to the graph</a>
+  <div class="sp"></div>
+  <span id="whoami" style="color:var(--dim);font-size:13px"></span>
+  <a href="#" id="signout">Sign out</a>
+</header>
+<main>
+
+  <section id="secPassword">
+    <h2>Your password</h2>
+    <p class="sub">Changing it signs this account out everywhere, including here.</p>
+    <div class="row">
+      <div><label for="pwOld">Current password</label><input id="pwOld" type="password" autocomplete="current-password"></div>
+      <div><label for="pwNew">New password</label><input id="pwNew" type="password" autocomplete="new-password"></div>
+      <div><label for="pwNew2">Confirm</label><input id="pwNew2" type="password" autocomplete="new-password"></div>
+      <button id="pwGo">Change</button>
+    </div>
+    <div class="msg" id="pwMsg"></div>
+  </section>
+
+  <section id="secUsers" class="hide">
+    <h2>Accounts</h2>
+    <p class="sub">An <b>admin</b> can add and edit targets. A <b>viewer</b> can only look at graphs
+      — adding a target makes this machine send packets to an address of the requester's
+      choosing, which is not something to hand out with a read-only link.</p>
+    <table><thead><tr><th>Name</th><th>Role</th><th style="width:1%"></th></tr></thead>
+      <tbody id="userRows"></tbody></table>
+    <div class="row" style="margin-top:16px">
+      <div><label for="nuName">New account</label><input id="nuName" placeholder="username"></div>
+      <div><label for="nuPass">Password</label><input id="nuPass" type="password" placeholder="at least 8 characters"></div>
+      <div style="flex:0 0 130px"><label for="nuRole">Role</label>
+        <select id="nuRole"><option value="viewer">viewer</option><option value="admin">admin</option></select></div>
+      <button id="nuGo">Add</button>
+    </div>
+    <div class="msg" id="uMsg"></div>
+  </section>
+
+  <section id="secPort" class="hide">
+    <h2>Console port</h2>
+    <p class="sub">Takes effect when the service restarts. The tray icon can restart it,
+      and fixes the firewall rule at the same time.</p>
+    <div class="row">
+      <div style="flex:0 0 140px"><label for="portIn">Port</label><input id="portIn" type="number" min="1" max="65535"></div>
+      <button id="portGo">Save</button>
+    </div>
+    <div class="msg" id="portMsg"></div>
+  </section>
+
+  <section>
+    <h2>About</h2>
+    <p class="sub">Latency distribution and packet loss, kept as a distribution rather than an average.</p>
+    <dl>
+      <dt>Version</dt><dd id="abVer">—</dd>
+      <dt>Listening on</dt><dd id="abListen">—</dd>
+      <dt>Data</dt><dd id="abData">—</dd>
+      <dt>Retention</dt><dd id="abRet">—</dd>
+      <dt>Source</dt><dd><a href="https://github.com/githubflyideas/SmokeTrail" target="_blank"
+        rel="noopener" style="color:var(--acc)">github.com/githubflyideas/SmokeTrail</a></dd>
+    </dl>
+  </section>
+
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const JSONH = { 'Content-Type': 'application/json' };
+let me = null;
+
+function say(el, text, cls) { el.className = 'msg' + (cls ? ' ' + cls : ''); el.textContent = text; }
+
+async function api(method, url, body) {
+  const res = await fetch(url, {
+    method,
+    headers: body === undefined ? undefined : JSONH,
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+  return d;
+}
+
+async function load() {
+  try { me = await api('GET', '/api/me'); }
+  catch { location.href = '/login'; return; }
+
+  $('whoami').textContent = me.user + ' · ' + me.role;
+  $('abVer').textContent = me.version;
+  $('abListen').textContent = me.listen;
+  $('abData').textContent = me.data_dir;
+  $('abRet').textContent = me.retention_days + ' days';
+  $('portIn').value = me.port;
+
+  if (me.role === 'admin') {
+    $('secUsers').classList.remove('hide');
+    $('secPort').classList.remove('hide');
+    loadUsers();
+  }
+}
+
+async function loadUsers() {
+  let users = [];
+  try { users = await api('GET', '/api/users'); }
+  catch (e) { say($('uMsg'), e.message, 'err'); return; }
+
+  const tb = $('userRows');
+  tb.textContent = '';
+  for (const u of users) {
+    const tr = document.createElement('tr');
+
+    const tdName = document.createElement('td');
+    tdName.textContent = u.name;                       // never innerHTML: user-supplied
+    if (u.name === me.user) {
+      const you = document.createElement('span');
+      you.className = 'tag'; you.style.marginLeft = '8px'; you.textContent = 'you';
+      tdName.append(you);
+    }
+
+    const tdRole = document.createElement('td');
+    const sel = document.createElement('select');
+    for (const r of ['admin', 'viewer']) {
+      const o = document.createElement('option');
+      o.value = r; o.textContent = r; o.selected = u.role === r;
+      sel.append(o);
+    }
+    sel.onchange = async () => {
+      try { await api('POST', `/api/users/${encodeURIComponent(u.name)}/role`, { Role: sel.value });
+            say($('uMsg'), `${u.name} is now ${sel.value}.`, 'ok'); loadUsers(); }
+      catch (e) { say($('uMsg'), e.message, 'err'); sel.value = u.role; }
+    };
+    tdRole.append(sel);
+
+    const tdAct = document.createElement('td');
+    tdAct.style.textAlign = 'right';
+    tdAct.style.whiteSpace = 'nowrap';
+
+    const reset = document.createElement('button');
+    reset.className = 'ghost'; reset.textContent = 'Reset password';
+    reset.onclick = async () => {
+      const p = prompt(`New password for ${u.name} (at least 8 characters):`);
+      if (!p) return;
+      try { await api('POST', `/api/users/${encodeURIComponent(u.name)}/password`, { Pass: p });
+            say($('uMsg'), `Password reset for ${u.name}. Their sessions were signed out.`, 'ok'); }
+      catch (e) { say($('uMsg'), e.message, 'err'); }
+    };
+    tdAct.append(reset);
+
+    if (u.name !== me.user) {
+      const del = document.createElement('button');
+      del.className = 'danger'; del.style.marginLeft = '8px'; del.textContent = 'Delete';
+      del.onclick = async () => {
+        if (!confirm(`Delete the account ${u.name}?`)) return;
+        try { await api('DELETE', `/api/users/${encodeURIComponent(u.name)}`);
+              say($('uMsg'), `Deleted ${u.name}.`, 'ok'); loadUsers(); }
+        catch (e) { say($('uMsg'), e.message, 'err'); }
+      };
+      tdAct.append(del);
+    }
+
+    tr.append(tdName, tdRole, tdAct);
+    tb.append(tr);
+  }
+}
+
+$('pwGo').onclick = async () => {
+  const m = $('pwMsg');
+  if ($('pwNew').value !== $('pwNew2').value) { say(m, 'The two new passwords do not match.', 'err'); return; }
+  try {
+    await api('POST', '/api/password', { Old: $('pwOld').value, New: $('pwNew').value });
+    say(m, 'Changed. Signing you back in…', 'ok');
+    setTimeout(() => location.href = '/login', 1200);
+  } catch (e) { say(m, e.message, 'err'); }
+};
+
+$('nuGo').onclick = async () => {
+  const m = $('uMsg');
+  try {
+    await api('POST', '/api/users',
+      { Name: $('nuName').value, Pass: $('nuPass').value, Role: $('nuRole').value });
+    $('nuName').value = ''; $('nuPass').value = '';
+    say(m, 'Account created.', 'ok');
+    loadUsers();
+  } catch (e) { say(m, e.message, 'err'); }
+};
+
+$('portGo').onclick = async () => {
+  const m = $('portMsg');
+  try {
+    const d = await api('POST', '/api/settings/port', { Port: +$('portIn').value });
+    say(m, d.note || 'Saved.', 'warn');
+  } catch (e) { say(m, e.message, 'err'); }
+};
+
+$('signout').onclick = async e => {
+  e.preventDefault();
+  await fetch('/api/logout', { method: 'POST' });
+  location.href = '/login';
+};
+
+load();
+</script></body></html>
