@@ -4,13 +4,15 @@
 
 SmokeTrail delivers long-term network performance tracking—monitoring latency variations, jitter, and packet loss over time with intuitive visual charts. Designed to be lightweight and zero-dependency, it runs seamlessly across **Windows**, **Linux**, and **macOS**.
 
----
+bash'''
+
+Windows
 https://github.com/githubflyideas/SmokeTrail/releases/download/v0.3.2/SmokeTrail-0.3.2-setup.exe
 
-or
+macos
 
-https://github.com/githubflyideas/SmokeTrail/releases/tag/v0.3.2
-
+https://github.com/githubflyideas/SmokeTrail/releases/download/v0.3.2/smoketrail-darwin-arm64
+'''
 ### ✨ Key Features
 
 * 📊 **Latency & Packet Loss Visualization**: Displays historical ping trends and packet loss density using clear, SmokePing-style chart visualizations.
