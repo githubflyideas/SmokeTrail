@@ -6,6 +6,7 @@ SmokeTrail delivers long-term network quality tracking—monitoring latency vari
 
 ---
 Download install file
+
 https://github.com/user-attachments/files/32564824/SmokeTrail-0.3.0-setup.zip
 
 ### Key Features
