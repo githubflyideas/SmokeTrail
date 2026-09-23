@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"mime"
 	"net"
@@ -445,6 +446,18 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 		})
 	})
 
+	// The catalogue, one language at a time. Unauthenticated on purpose: the sign-in
+	// and first-run screens need it before anyone has a session, and it contains
+	// nothing but interface text.
+	mux.HandleFunc("GET /api/i18n", func(w http.ResponseWriter, r *http.Request) {
+		lang := normalizeLang(r.URL.Query().Get("lang"))
+		if lang == "" {
+			lang = acceptLanguage(r.Header.Get("Accept-Language"))
+		}
+		w.Header().Set("Cache-Control", "no-cache")
+		writeJSON(w, bundle(lang))
+	})
+
 	mux.HandleFunc("/api/version", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{
 			"version":        version,
@@ -593,6 +606,37 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 		return false
 	}
 	return true
+}
+
+// acceptLanguage picks the best catalogue match from a browser's header. Quality
+// values are honoured because a browser set to "ja, en;q=0.8" means it, and
+// ignoring q would hand that user English.
+func acceptLanguage(h string) string {
+	type cand struct {
+		tag string
+		q   float64
+	}
+	var best cand
+	for _, part := range strings.Split(h, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		tag, q := part, 1.0
+		if i := strings.Index(part, ";"); i >= 0 {
+			tag = strings.TrimSpace(part[:i])
+			if _, err := fmt.Sscanf(strings.TrimSpace(part[i+1:]), "q=%f", &q); err != nil {
+				q = 1.0
+			}
+		}
+		if l := normalizeLang(tag); l != "" && q > best.q-0.0001 && (best.tag == "" || q > best.q) {
+			best = cand{l, q}
+		}
+	}
+	if best.tag == "" {
+		return langEN
+	}
+	return best.tag
 }
 
 // portNum extracts the numeric port from a listen address.

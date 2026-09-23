@@ -13,24 +13,21 @@ import "golang.org/x/sys/windows/registry"
 
 var procGetUserDefaultUILanguage = kernel32.NewProc("GetUserDefaultUILanguage")
 
-const (
-	langPrimaryEnglish  = 0x09
-	langPrimaryJapanese = 0x11
-	langPrimaryChinese  = 0x04
-)
+// PRIMARYLANGID values for the languages the catalogue covers. Anything else
+// falls back to English.
+var winPrimaryLang = map[uint16]string{
+	0x09: "en", 0x04: "zh", 0x0a: "es", 0x0c: "fr", 0x16: "pt",
+	0x19: "ru", 0x21: "id", 0x07: "de", 0x11: "ja", 0x12: "ko",
+}
 
-// systemLang maps the Windows UI language to one of ours.
+// systemLang maps the Windows UI language to one of ours. Regional variants all
+// collapse onto their base language: pt-BR and pt-PT share a catalogue entry, and
+// every Chinese sublanguage lands on Simplified. Splitting those is adding an
+// entry to strings.json and a case here, nothing more.
 func systemLang() string {
 	id, _, _ := procGetUserDefaultUILanguage.Call()
-	switch uint16(id) & 0x3ff { // PRIMARYLANGID
-	case langPrimaryJapanese:
-		return langJA
-	case langPrimaryChinese:
-		// Every Chinese sublanguage lands on Simplified for now. Traditional
-		// would be a fourth msgs value and a sublanguage check here.
-		return langZH
-	case langPrimaryEnglish:
-		return langEN
+	if l, ok := winPrimaryLang[uint16(id)&0x3ff]; ok {
+		return l
 	}
 	return langEN
 }
@@ -53,8 +50,7 @@ func storedLang() string {
 	if err != nil {
 		return langAuto
 	}
-	switch v {
-	case langEN, langJA, langZH:
+	if knownLang(v) {
 		return v
 	}
 	return langAuto

@@ -42,71 +42,76 @@ tr:last-child td{border-bottom:0}
 dl{display:grid;grid-template-columns:auto 1fr;gap:8px 18px;margin:0;font-size:13px}
 dt{color:var(--dim)} dd{margin:0;font-family:ui-monospace,Consolas,monospace;word-break:break-all}
 .hide{display:none}
+
+.lang-picker{background:#161b22;color:#8b949e;border:1px solid #272e38;border-radius:6px;
+ padding:5px 8px;font:inherit;font-size:12px;cursor:pointer}
+.lang-picker:focus{outline:none;border-color:#3fb950}
+.lang-picker option{background:#161b22;color:#e6edf3}
 </style></head><body>
 <header>
   <div class="mark">SmokeTrail</div>
-  <a href="/">&larr; back to the graph</a>
+  <a href="/" data-i18n="settings.back">&larr; back to the graph</a>
   <div class="sp"></div>
   <span id="whoami" style="color:var(--dim);font-size:13px"></span>
-  <a href="#" id="signout">Sign out</a>
+  <span data-i18n-picker></span>
+  <a href="#" id="signout" data-i18n="settings.signOut">Sign out</a>
 </header>
 <main>
 
   <section id="secPassword">
-    <h2>Your password</h2>
-    <p class="sub">Changing it signs this account out everywhere, including here.</p>
+    <h2 data-i18n="settings.pwTitle">Your password</h2>
+    <p class="sub" data-i18n="settings.pwSub">Changing it signs this account out everywhere, including here.</p>
     <div class="row">
-      <div><label for="pwOld">Current password</label><input id="pwOld" type="password" autocomplete="current-password"></div>
-      <div><label for="pwNew">New password</label><input id="pwNew" type="password" autocomplete="new-password"></div>
-      <div><label for="pwNew2">Confirm</label><input id="pwNew2" type="password" autocomplete="new-password"></div>
-      <button id="pwGo">Change</button>
+      <div><label for="pwOld" data-i18n="settings.pwCurrent">Current password</label><input id="pwOld" type="password" autocomplete="current-password"></div>
+      <div><label for="pwNew" data-i18n="settings.pwNew">New password</label><input id="pwNew" type="password" autocomplete="new-password"></div>
+      <div><label for="pwNew2" data-i18n="settings.pwConfirm">Confirm</label><input id="pwNew2" type="password" autocomplete="new-password"></div>
+      <button id="pwGo" data-i18n="settings.pwGo">Change</button>
     </div>
     <div class="msg" id="pwMsg"></div>
   </section>
 
   <section id="secUsers" class="hide">
-    <h2>Accounts</h2>
-    <p class="sub">An <b>admin</b> can add and edit targets. A <b>viewer</b> can only look at graphs
-      — adding a target makes this machine send packets to an address of the requester's
-      choosing, which is not something to hand out with a read-only link.</p>
-    <table><thead><tr><th>Name</th><th>Role</th><th style="width:1%"></th></tr></thead>
+    <h2 data-i18n="settings.usersTitle">Accounts</h2>
+    <p class="sub" data-i18n="settings.usersSub">An admin can add and edit targets. A viewer can only look at graphs.</p>
+    <table><thead><tr><th data-i18n="settings.colName">Name</th><th data-i18n="settings.colRole">Role</th><th style="width:1%"></th></tr></thead>
       <tbody id="userRows"></tbody></table>
     <div class="row" style="margin-top:16px">
-      <div><label for="nuName">New account</label><input id="nuName" placeholder="username"></div>
-      <div><label for="nuPass">Password</label><input id="nuPass" type="password" placeholder="at least 8 characters"></div>
-      <div style="flex:0 0 130px"><label for="nuRole">Role</label>
+      <div><label for="nuName" data-i18n="settings.newAccount">New account</label><input id="nuName" placeholder="username"></div>
+      <div><label for="nuPass" data-i18n="setup.password">Password</label><input id="nuPass" type="password" placeholder="at least 8 characters" data-i18n-ph="settings.passwordPh"></div>
+      <div style="flex:0 0 130px"><label for="nuRole" data-i18n="settings.colRole">Role</label>
         <select id="nuRole"><option value="viewer">viewer</option><option value="admin">admin</option></select></div>
-      <button id="nuGo">Add</button>
+      <button id="nuGo" data-i18n="settings.add">Add</button>
     </div>
     <div class="msg" id="uMsg"></div>
   </section>
 
   <section id="secPort" class="hide">
-    <h2>Console port</h2>
+    <h2 data-i18n="settings.portTitle">Console port</h2>
     <p class="sub">Takes effect when the service restarts. The tray icon can restart it,
       and fixes the firewall rule at the same time.</p>
     <div class="row">
-      <div style="flex:0 0 140px"><label for="portIn">Port</label><input id="portIn" type="number" min="1" max="65535"></div>
-      <button id="portGo">Save</button>
+      <div style="flex:0 0 140px"><label for="portIn" data-i18n="settings.portTitle">Port</label><input id="portIn" type="number" min="1" max="65535"></div>
+      <button id="portGo" data-i18n="settings.save">Save</button>
     </div>
     <div class="msg" id="portMsg"></div>
   </section>
 
   <section>
-    <h2>About</h2>
-    <p class="sub">Latency distribution and packet loss, kept as a distribution rather than an average.</p>
+    <h2 data-i18n="settings.aboutTitle">About</h2>
+    <p class="sub" data-i18n="about.tagline">Latency distribution and packet loss, kept as a distribution rather than an average.</p>
     <dl>
-      <dt>Version</dt><dd id="abVer">—</dd>
-      <dt>Listening on</dt><dd id="abListen">—</dd>
-      <dt>Data</dt><dd id="abData">—</dd>
-      <dt>Retention</dt><dd id="abRet">—</dd>
-      <dt>Source</dt><dd><a href="https://github.com/githubflyideas/SmokeTrail" target="_blank"
+      <dt data-i18n="settings.version">Version</dt><dd id="abVer">—</dd>
+      <dt data-i18n="settings.listening">Listening on</dt><dd id="abListen">—</dd>
+      <dt data-i18n="settings.dataDir">Data</dt><dd id="abData">—</dd>
+      <dt data-i18n="settings.retention">Retention</dt><dd id="abRet">—</dd>
+      <dt data-i18n="settings.source">Source</dt><dd><a href="https://github.com/githubflyideas/SmokeTrail" target="_blank"
         rel="noopener" style="color:var(--acc)">github.com/githubflyideas/SmokeTrail</a></dd>
-      <dt>License</dt><dd>Apache License 2.0</dd>
+      <dt data-i18n="settings.license">License</dt><dd>Apache License 2.0</dd>
     </dl>
   </section>
 
 </main>
+<script src="/static/i18n.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const JSONH = { 'Content-Type': 'application/json' };
@@ -133,7 +138,7 @@ async function load() {
   $('abVer').textContent = me.version;
   $('abListen').textContent = me.listen;
   $('abData').textContent = me.data_dir;
-  $('abRet').textContent = me.retention_days + ' days';
+  $('abRet').textContent = me.retention_days + ' ' + T('settings.days');
   $('portIn').value = me.port;
 
   if (me.role === 'admin') {
@@ -157,7 +162,7 @@ async function loadUsers() {
     tdName.textContent = u.name;                       // never innerHTML: user-supplied
     if (u.name === me.user) {
       const you = document.createElement('span');
-      you.className = 'tag'; you.style.marginLeft = '8px'; you.textContent = 'you';
+      you.className = 'tag'; you.style.marginLeft = '8px'; you.textContent = T('settings.you');
       tdName.append(you);
     }
 
@@ -180,7 +185,7 @@ async function loadUsers() {
     tdAct.style.whiteSpace = 'nowrap';
 
     const reset = document.createElement('button');
-    reset.className = 'ghost'; reset.textContent = 'Reset password';
+    reset.className = 'ghost'; reset.textContent = T('settings.resetPw');
     reset.onclick = async () => {
       const p = prompt(`New password for ${u.name} (at least 8 characters):`);
       if (!p) return;
@@ -192,7 +197,7 @@ async function loadUsers() {
 
     if (u.name !== me.user) {
       const del = document.createElement('button');
-      del.className = 'danger'; del.style.marginLeft = '8px'; del.textContent = 'Delete';
+      del.className = 'danger'; del.style.marginLeft = '8px'; del.textContent = T('settings.delete');
       del.onclick = async () => {
         if (!confirm(`Delete the account ${u.name}?`)) return;
         try { await api('DELETE', `/api/users/${encodeURIComponent(u.name)}`);
@@ -209,10 +214,10 @@ async function loadUsers() {
 
 $('pwGo').onclick = async () => {
   const m = $('pwMsg');
-  if ($('pwNew').value !== $('pwNew2').value) { say(m, 'The two new passwords do not match.', 'err'); return; }
+  if ($('pwNew').value !== $('pwNew2').value) { say(m, T('setup.mismatch'), 'err'); return; }
   try {
     await api('POST', '/api/password', { Old: $('pwOld').value, New: $('pwNew').value });
-    say(m, 'Changed. Signing you back in…', 'ok');
+    say(m, T('settings.pwDone'), 'ok');
     setTimeout(() => location.href = '/login', 1200);
   } catch (e) { say(m, e.message, 'err'); }
 };
@@ -242,5 +247,6 @@ $('signout').onclick = async e => {
   location.href = '/login';
 };
 
-load();
+document.addEventListener('i18n', () => { if (me && me.role === 'admin') loadUsers(); });
+window.i18nReady.then(load);
 </script></body></html>

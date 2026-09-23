@@ -21,24 +21,34 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with: { go-version: '1.24' }
+
+      # One step, one output. Two conditional steps writing the same output name
+      # meant a manual run produced an empty version and named every artefact
+      # "SmokeTrail--setup.exe".
       - id: v
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-        if: startsWith(github.ref, 'refs/tags/')
-      - id: v2
-        run: echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then v="$INPUT_VERSION"; else v="${GITHUB_REF_NAME#v}"; fi
+          [ -n "$v" ] || { echo "no version could be determined"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "building $v"
+
+      # go.sum is not committed until the first `go mod tidy` runs somewhere with
+      # a reachable module proxy; do it here so a fresh clone still releases.
+      - run: go mod tidy && go build ./... && go test ./...
 
       # One `go build` per target, no toolchain, no container. If this ever needs
       # more than this, ADR 1 has been undone.
       - name: stamp the Windows resource (version, icon, manifest)
         run: |
           go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest
-          PATH="$(go env GOPATH)/bin:$PATH" packaging/gen-resource.sh "${{ steps.v.outputs.version || inputs.version }}"
+          PATH="$(go env GOPATH)/bin:$PATH" packaging/gen-resource.sh "${{ steps.v.outputs.version }}"
           git diff --stat -- resource_windows.syso || true
 
       - name: cross-build
         env:
-          V: ${{ steps.v.outputs.version || inputs.version }}
+          V: ${{ steps.v.outputs.version }}
         run: |
           mkdir -p dist
           for t in windows/amd64 windows/386 windows/arm64 linux/amd64 linux/arm64 darwin/arm64; do
@@ -56,7 +66,7 @@ jobs:
       # directory is the entire portable-vs-installed switch (ADR 5).
       - name: portable zip
         env:
-          V: ${{ steps.v.outputs.version || inputs.version }}
+          V: ${{ steps.v.outputs.version }}
         run: |
           for arch in amd64 arm64; do
             d=$(mktemp -d)

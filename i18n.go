@@ -1,24 +1,93 @@
 package main
 
-// Interface strings, as a struct rather than a map keyed by string.
-//
-// A map would let a typo compile and then silently render the key to a user. A
-// struct makes every language a complete instance that the compiler checks: add a
-// field and every translation fails to build until it is filled in, which is
-// exactly the moment to notice. The cost is that this file is the only place
-// strings live — which is also the point.
-//
-// Three languages, because those are the ones this tool is actually used in.
-// Traditional Chinese would be a fourth instance of the same struct and nothing
-// else. English is the fallback for everything else.
+import (
+	_ "embed"
+	"encoding/json"
+	"log"
+	"sort"
+	"strings"
+)
 
+// One catalogue, shared by the notification-area icon and the web console.
+//
+// It lives in JSON rather than in Go source because two very different consumers
+// read it — a Win32 menu and a browser — and a translator should be able to work
+// on one file without touching either. The Go side still projects it into a
+// struct (below), so every call site is compile-checked and a typo in a key
+// cannot reach a user as a rendered key name; the completeness test catches the
+// other half, a key that exists but has no translation.
+//
+//go:embed i18n/strings.json
+var i18nRaw []byte
+
+type catalogue struct {
+	Langs   []string                     `json:"langs"`
+	Names   map[string]string            `json:"names"`
+	Strings map[string]map[string]string `json:"strings"`
+}
+
+var cat catalogue
+
+func init() {
+	if err := json.Unmarshal(i18nRaw, &cat); err != nil {
+		// Embedded and tested; if this ever fails the binary is not shippable.
+		log.Fatalf("i18n: %v", err)
+	}
+}
+
+const (
+	langAuto = ""
+	langEN   = "en"
+)
+
+// tr looks up one string, falling back to English and then to the key itself —
+// a visible key is ugly but it is better than a blank menu item, and the test
+// suite means it should never happen in a release.
+func tr(lang, key string) string {
+	m, ok := cat.Strings[key]
+	if !ok {
+		return key
+	}
+	if v := m[lang]; v != "" {
+		return v
+	}
+	if v := m[langEN]; v != "" {
+		return v
+	}
+	return key
+}
+
+func knownLang(tag string) bool {
+	for _, l := range cat.Langs {
+		if l == tag {
+			return true
+		}
+	}
+	return false
+}
+
+// normalizeLang maps a browser or OS tag ("zh-Hans-CN", "pt_BR") onto one we have.
+func normalizeLang(tag string) string {
+	tag = strings.ToLower(strings.TrimSpace(tag))
+	tag = strings.ReplaceAll(tag, "_", "-")
+	if knownLang(tag) {
+		return tag
+	}
+	if i := strings.Index(tag, "-"); i > 0 {
+		if base := tag[:i]; knownLang(base) {
+			return base
+		}
+	}
+	return ""
+}
+
+// msgs is the projection the notification-area icon uses. Keeping it a struct
+// means a renamed key breaks the build here rather than blanking a menu item on
+// somebody's desktop.
 type msgs struct {
-	// Notification-area menu
 	OpenConsole    string
 	SettingsItem   string
-	ChangePassword string
 	DataFolder     string
-	Selftest       string
 	RestartService string
 	StopService    string
 	StartService   string
@@ -28,7 +97,6 @@ type msgs struct {
 	LanguageItem   string
 	LangAuto       string
 
-	// Status, shown greyed at the top of the menu and in the tooltip
 	Starting      string
 	NotResponding string
 	NeedsSetup    string
@@ -36,7 +104,6 @@ type msgs struct {
 	AllUpFmt      string // one %d: target count
 	SomeDownFmt   string // two %d: target count, down count
 
-	// Balloon notifications
 	StoppedTitle   string
 	StoppedBodyFmt string // one %s: console URL
 	BackTitle      string
@@ -45,7 +112,6 @@ type msgs struct {
 	UpTitle        string
 	UpBodyFmt      string // one %d: target count
 
-	// About box
 	AboutTitle   string
 	AboutTagline string
 	AboutConsole string
@@ -54,143 +120,90 @@ type msgs struct {
 	AboutLicense string
 }
 
-var msgEN = msgs{
-	OpenConsole:    "Open console",
-	SettingsItem:   "Settings, accounts and port...",
-	ChangePassword: "Change my password...",
-	DataFolder:     "Open data folder",
-	Selftest:       "Run clock selftest...",
-	RestartService: "Restart service (applies a new port)",
-	StopService:    "Stop service",
-	StartService:   "Start service",
-	CheckUpdates:   "Check for updates",
-	AboutItem:      "About SmokeTrail",
-	ExitItem:       "Exit SmokeTrail",
-	LanguageItem:   "Language",
-	LangAuto:       "Automatic (match Windows)",
+// trayKeys is the map from struct field to catalogue key, in one place so the
+// completeness test can walk it.
+var trayKeys = map[string]string{
+	"OpenConsole": "tray.openConsole", "SettingsItem": "tray.settings",
+	"DataFolder": "tray.dataFolder", "RestartService": "tray.restartService",
+	"StopService": "tray.stopService", "StartService": "tray.startService",
+	"CheckUpdates": "tray.checkUpdates", "AboutItem": "tray.about",
+	"ExitItem": "tray.exit", "LanguageItem": "tray.language",
+	"LangAuto": "tray.langAuto",
 
-	Starting:      "starting",
-	NotResponding: "service not responding",
-	NeedsSetup:    "set the admin password",
-	NoTargets:     "no targets yet",
-	AllUpFmt:      "%d targets, all up",
-	SomeDownFmt:   "%d targets, %d DOWN",
+	"Starting": "status.starting", "NotResponding": "status.notResponding",
+	"NeedsSetup": "status.needsSetup", "NoTargets": "status.noTargets",
+	"AllUpFmt": "status.allUp", "SomeDownFmt": "status.someDown",
 
-	StoppedTitle:   "SmokeTrail stopped responding",
-	StoppedBodyFmt: "The service is not answering on %s.",
-	BackTitle:      "SmokeTrail is back",
-	DownTitle:      "Link down",
-	DownBodyFmt:    "%d of %d targets are not responding.",
-	UpTitle:        "Links recovered",
-	UpBodyFmt:      "All %d targets are responding again.",
+	"StoppedTitle": "notify.stoppedTitle", "StoppedBodyFmt": "notify.stoppedBody",
+	"BackTitle": "notify.backTitle", "DownTitle": "notify.downTitle",
+	"DownBodyFmt": "notify.downBody", "UpTitle": "notify.upTitle",
+	"UpBodyFmt": "notify.upBody",
 
-	AboutTitle:   "About SmokeTrail",
-	AboutTagline: "Latency distribution and packet loss, kept as a\ndistribution rather than an average.",
-	AboutConsole: "Console",
-	AboutStatus:  "Status",
-	AboutData:    "Data",
-	AboutLicense: "Apache License 2.0",
+	"AboutTitle": "tray.about", "AboutTagline": "about.tagline",
+	"AboutConsole": "about.console", "AboutStatus": "about.status",
+	"AboutData": "about.data", "AboutLicense": "settings.license",
 }
 
-var msgJA = msgs{
-	OpenConsole:    "コンソールを開く",
-	SettingsItem:   "設定・アカウント・ポート...",
-	ChangePassword: "パスワードを変更...",
-	DataFolder:     "データフォルダーを開く",
-	Selftest:       "クロック自己診断を実行...",
-	RestartService: "サービスを再起動（ポート変更を適用）",
-	StopService:    "サービスを停止",
-	StartService:   "サービスを開始",
-	CheckUpdates:   "更新を確認",
-	AboutItem:      "SmokeTrail について",
-	ExitItem:       "SmokeTrail を終了",
-	LanguageItem:   "言語",
-	LangAuto:       "自動（Windows に合わせる）",
+func messages(lang string) msgs {
+	t := func(k string) string { return tr(lang, k) }
+	return msgs{
+		OpenConsole:    t(trayKeys["OpenConsole"]),
+		SettingsItem:   t(trayKeys["SettingsItem"]),
+		DataFolder:     t(trayKeys["DataFolder"]),
+		RestartService: t(trayKeys["RestartService"]),
+		StopService:    t(trayKeys["StopService"]),
+		StartService:   t(trayKeys["StartService"]),
+		CheckUpdates:   t(trayKeys["CheckUpdates"]),
+		AboutItem:      t(trayKeys["AboutItem"]),
+		ExitItem:       t(trayKeys["ExitItem"]),
+		LanguageItem:   t(trayKeys["LanguageItem"]),
+		LangAuto:       t(trayKeys["LangAuto"]),
 
-	Starting:      "起動中",
-	NotResponding: "サービスが応答していません",
-	NeedsSetup:    "管理者パスワードを設定してください",
-	NoTargets:     "監視対象がまだありません",
-	AllUpFmt:      "%d 件すべて正常",
-	SomeDownFmt:   "%d 件中 %d 件ダウン",
+		Starting:      t(trayKeys["Starting"]),
+		NotResponding: t(trayKeys["NotResponding"]),
+		NeedsSetup:    t(trayKeys["NeedsSetup"]),
+		NoTargets:     t(trayKeys["NoTargets"]),
+		AllUpFmt:      t(trayKeys["AllUpFmt"]),
+		SomeDownFmt:   t(trayKeys["SomeDownFmt"]),
 
-	StoppedTitle:   "SmokeTrail が応答しなくなりました",
-	StoppedBodyFmt: "サービスが %s で応答していません。",
-	BackTitle:      "SmokeTrail が復帰しました",
-	DownTitle:      "回線ダウン",
-	DownBodyFmt:    "監視対象 %d/%d 件が応答していません。",
-	UpTitle:        "回線が復旧しました",
-	UpBodyFmt:      "%d 件すべてが復旧しました。",
+		StoppedTitle:   t(trayKeys["StoppedTitle"]),
+		StoppedBodyFmt: t(trayKeys["StoppedBodyFmt"]),
+		BackTitle:      t(trayKeys["BackTitle"]),
+		DownTitle:      t(trayKeys["DownTitle"]),
+		DownBodyFmt:    t(trayKeys["DownBodyFmt"]),
+		UpTitle:        t(trayKeys["UpTitle"]),
+		UpBodyFmt:      t(trayKeys["UpBodyFmt"]),
 
-	AboutTitle:   "SmokeTrail について",
-	AboutTagline: "遅延の分布とパケットロスを、平均ではなく\n分布のまま記録します。",
-	AboutConsole: "コンソール",
-	AboutStatus:  "状態",
-	AboutData:    "データ",
-	AboutLicense: "Apache License 2.0",
-}
-
-var msgZH = msgs{
-	OpenConsole:    "打开控制台",
-	SettingsItem:   "设置、账户和端口...",
-	ChangePassword: "修改我的密码...",
-	DataFolder:     "打开数据目录",
-	Selftest:       "运行时钟自检...",
-	RestartService: "重启服务（应用新端口）",
-	StopService:    "停止服务",
-	StartService:   "启动服务",
-	CheckUpdates:   "检查更新",
-	AboutItem:      "关于 SmokeTrail",
-	ExitItem:       "退出 SmokeTrail",
-	LanguageItem:   "语言",
-	LangAuto:       "自动（跟随 Windows）",
-
-	Starting:      "启动中",
-	NotResponding: "服务无响应",
-	NeedsSetup:    "请设置管理员密码",
-	NoTargets:     "还没有监控目标",
-	AllUpFmt:      "%d 个目标，全部正常",
-	SomeDownFmt:   "%d 个目标，%d 个掉线",
-
-	StoppedTitle:   "SmokeTrail 停止响应",
-	StoppedBodyFmt: "服务在 %s 上没有响应。",
-	BackTitle:      "SmokeTrail 已恢复",
-	DownTitle:      "链路掉线",
-	DownBodyFmt:    "%d/%d 个目标无响应。",
-	UpTitle:        "链路已恢复",
-	UpBodyFmt:      "全部 %d 个目标已恢复正常。",
-
-	AboutTitle:   "关于 SmokeTrail",
-	AboutTagline: "延迟分布与丢包 —— 保留分布本身，\n而不是压成一个平均值。",
-	AboutConsole: "控制台",
-	AboutStatus:  "状态",
-	AboutData:    "数据",
-	AboutLicense: "Apache License 2.0",
-}
-
-// langTag is a BCP-47-ish tag, kept short because only three values exist.
-const (
-	langAuto = ""
-	langEN   = "en"
-	langJA   = "ja"
-	langZH   = "zh"
-)
-
-var langOrder = []string{langEN, langJA, langZH}
-
-var langNames = map[string]string{
-	langEN: "English",
-	langJA: "日本語",
-	langZH: "简体中文",
-}
-
-func messages(tag string) msgs {
-	switch tag {
-	case langJA:
-		return msgJA
-	case langZH:
-		return msgZH
-	default:
-		return msgEN
+		AboutTitle:   t(trayKeys["AboutTitle"]),
+		AboutTagline: t(trayKeys["AboutTagline"]),
+		AboutConsole: t(trayKeys["AboutConsole"]),
+		AboutStatus:  t(trayKeys["AboutStatus"]),
+		AboutData:    t(trayKeys["AboutData"]),
+		AboutLicense: t(trayKeys["AboutLicense"]),
 	}
+}
+
+// langOrder is the offer order shown to a user: English first because it is the
+// fallback, then by the catalogue's own ordering.
+func langOrder() []string { return cat.Langs }
+
+func langName(tag string) string {
+	if n := cat.Names[tag]; n != "" {
+		return n
+	}
+	return tag
+}
+
+// bundle is what the console fetches: one language, flattened.
+func bundle(lang string) map[string]any {
+	s := map[string]string{}
+	keys := make([]string, 0, len(cat.Strings))
+	for k := range cat.Strings {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		s[k] = tr(lang, k)
+	}
+	return map[string]any{"lang": lang, "langs": cat.Langs, "names": cat.Names, "s": s}
 }

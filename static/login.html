@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:,"><title>Sign in — SmokeTrail</title>
+<script src="/static/i18n.js"></script>
 <script>
   const t = localStorage.getItem('pp_theme');
   if (t && t !== 'dark') document.documentElement.dataset.theme = t;
@@ -36,15 +37,21 @@
     --bg:#edf1f5; --panel:#f6f9fb; --screen:#fbfdfe; --line:#d7e0e8;
     --phos:#0b7285; --amber:#b45309; --alert:#d1433f; --ink:#24313d; --dim:#7f8f9d;
   }
+
+.lang-picker{background:#161b22;color:#8b949e;border:1px solid #272e38;border-radius:6px;
+ padding:5px 8px;font:inherit;font-size:12px;cursor:pointer}
+.lang-picker:focus{outline:none;border-color:#3fb950}
+.lang-picker option{background:#161b22;color:#e6edf3}
 </style>
 </head>
 <body>
 <div class="card">
   <div class="mark">SmokeTrail ●</div>
-  <div class="sub">Sign in to SmokeTrail</div>
-  <label>USERNAME</label><input id="user" autocomplete="username" autofocus>
-  <label>PASSWORD</label><input id="pass" type="password" autocomplete="current-password">
-  <button id="go">Sign in</button>
+  <div class="sub" data-i18n="login.title">Sign in to SmokeTrail</div>
+  <label data-i18n="login.username">USERNAME</label><input id="user" autocomplete="username" autofocus>
+  <label data-i18n="login.password">PASSWORD</label><input id="pass" type="password" autocomplete="current-password">
+  <button id="go" data-i18n="login.signIn">Sign in</button>
+  <div style="margin-top:18px;text-align:center" data-i18n-picker></div>
   <div class="err" id="err"></div>
 </div>
 <script>
@@ -64,7 +71,7 @@ async function login() {
   // Show what the server actually said. A blanket "wrong password" for every
   // failure is why the real cause took a user report to find.
   const d = await res.json().catch(() => ({}));
-  $('err').textContent = d.error || `Sign-in failed (HTTP ${res.status})`;
+  $('err').textContent = d.error || `${T('login.failed')} (HTTP ${res.status})`;
 }
 $('go').onclick = login;
 document.addEventListener('keydown', e => { if (e.key === 'Enter') login(); });

@@ -82,8 +82,8 @@ lifecycle, 2xxx degraded, 3xxx failed to start:
 Get-WinEvent -ProviderName SmokeTrail -MaxEvents 30
 ```
 
-The notification area icon speaks English, Japanese and Simplified Chinese,
-follows the Windows UI language, and raises a notification when a link goes down.
+The notification area icon raises a notification when a link goes down, and both
+it and the web console speak ten languages.
 
 ### Linux and macOS
 
@@ -107,6 +107,21 @@ Accounts come in two roles and there are no plans for a third. An **admin** can
 change what this host probes; a **viewer** can only look. That line is drawn
 where it is because adding a target makes this machine send packets to an address
 the requester chose, which is not something to hand out with a "have a look" URL.
+
+## Ten languages
+
+English · 中文 · Español · Français · Português · Русский · Bahasa Indonesia ·
+Deutsch · 日本語 · 한국어
+
+The console follows your browser's `Accept-Language` and the notification-area
+icon follows the Windows UI language; both have a picker, and the choice is
+remembered. One catalogue in `i18n/strings.json` feeds both, so a translator
+edits one file and never touches Go or HTML.
+
+Adding a language is one column in that file. Tests refuse to build a release
+with an empty string in any language, or with format placeholders that do not
+match English — a stray `%d` renders as `%!d(MISSING)` in a notification written
+in a language the author cannot read.
 
 ## Check the machine before you trust its graphs
 

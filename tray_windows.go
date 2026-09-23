@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -59,8 +58,6 @@ const (
 	idDataFolder   = 1006
 	idExit         = 1008
 	idSettings     = 1009
-	idPassword     = 1010
-	idSelftest     = 1011
 	idUpdates      = 1012
 	idAbout        = 1013
 
@@ -462,11 +459,7 @@ func (t *tray) showMenu() {
 	add(h, mfSeparator, 0, "")
 	add(h, mfString|mfDefault, idOpenConsole, m.OpenConsole)
 	add(h, mfString, idSettings, m.SettingsItem)
-	add(h, mfString, idPassword, m.ChangePassword)
-
-	add(h, mfSeparator, 0, "")
 	add(h, mfString, idDataFolder, m.DataFolder)
-	add(h, mfString, idSelftest, m.Selftest)
 
 	if t.service {
 		add(h, mfSeparator, 0, "")
@@ -492,8 +485,8 @@ func (t *tray) showMenu() {
 		}
 		add(sub, mfString|mark(langAuto), idLangBase, m.LangAuto)
 		add(sub, mfSeparator, 0, "")
-		for i, tag := range langOrder {
-			add(sub, mfString|mark(tag), uintptr(idLangBase+1+i), langNames[tag])
+		for i, tag := range langOrder() {
+			add(sub, mfString|mark(tag), uintptr(idLangBase+1+i), langName(tag))
 		}
 		add(h, mfSeparator, 0, "")
 		add(h, mfPopup, sub, m.LanguageItem)
@@ -525,10 +518,10 @@ func (t *tray) showMenu() {
 func (t *tray) command(id uint32) {
 	// The language submenu is a contiguous block rather than named constants,
 	// because langOrder decides how many entries there are.
-	if id >= idLangBase && int(id) <= idLangBase+len(langOrder) {
+	if order := langOrder(); id >= idLangBase && int(id) <= idLangBase+len(order) {
 		tag := langAuto
 		if id > idLangBase {
-			tag = langOrder[id-idLangBase-1]
+			tag = order[id-idLangBase-1]
 		}
 		t.setLang(tag)
 		return
@@ -549,19 +542,8 @@ func (t *tray) command(id uint32) {
 			" & net start "+svcName)
 	case idSettings:
 		t.open(t.consoleU + "/settings")
-	case idPassword:
-		t.open(t.consoleU + "/settings#password")
 	case idUpdates:
 		t.open(homepage + "/releases")
-	case idSelftest:
-		// A visible console is right here: it is a deliberate diagnostic the
-		// operator asked for and wants to read.
-		if exe, err := os.Executable(); err == nil {
-			windows.ShellExecute(0, nil,
-				windows.StringToUTF16Ptr("cmd.exe"),
-				windows.StringToUTF16Ptr(`/k "`+exe+`" selftest`),
-				nil, windows.SW_SHOWNORMAL)
-		}
 	case idAbout:
 		t.mu.Lock()
 		st, m := t.status, t.m

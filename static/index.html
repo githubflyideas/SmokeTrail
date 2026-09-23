@@ -183,6 +183,11 @@ html[data-theme="light"] input[type="datetime-local"],
 body.light input[type="datetime-local"]{
   color-scheme:light;background:#fff;color:#111;border-color:#d0d7de;
 }
+
+.lang-picker{background:#161b22;color:#8b949e;border:1px solid #272e38;border-radius:6px;
+ padding:5px 8px;font:inherit;font-size:12px;cursor:pointer}
+.lang-picker:focus{outline:none;border-color:#3fb950}
+.lang-picker option{background:#161b22;color:#e6edf3}
 </style>
 </head>
 <body>
@@ -190,7 +195,7 @@ body.light input[type="datetime-local"]{
   <div class="mark">SmokeTrail <span class="brand-led"></span></div>
   <div class="tag">One binary. One graph. One metric: Latency.</div>
   <div style="margin-left:auto; display:flex; gap:8px">
-    <button class="pill" id="editBtn" title="add, edit or remove targets" style="display:none">✎ targets</button>
+    <button class="pill" id="editBtn" title="add, edit or remove targets" style="display:none" data-i18n="console.targets">✎ targets</button>
     <button class="pill" id="themeBtn" title="switch theme">◐ <span id="themeName">dark</span></button>
   </div>
 </header>
@@ -216,8 +221,8 @@ body.light input[type="datetime-local"]{
     <input id="fName" placeholder="name (optional)" size="18" maxlength="64">
     <select id="fPace"><option value="normal">normal · 60s</option><option value="fast">fast · 15s</option><option value="slow">slow · 300s</option></select>
     <input id="fIv" type="number" min="1" max="86400" placeholder="interval (s)" style="width:112px" title="overrides pace">
-    <button class="pill" id="fSave" type="submit">+ add</button>
-    <button class="pill" id="fCancel" type="button" style="display:none">cancel</button>
+    <button class="pill" id="fSave" type="submit" data-i18n="console.add">+ add</button>
+    <button class="pill" id="fCancel" type="button" style="display:none" data-i18n="console.cancel">cancel</button>
     <span id="tgtErr"></span>
   </form>
 </div>
@@ -228,11 +233,11 @@ body.light input[type="datetime-local"]{
     <div class="ro"><div class="v" id="p50">–</div><div class="l">P50 MS</div></div>
     <div class="ro"><div class="v" id="p90">–</div><div class="l">P90 MS</div></div>
     <div class="ro"><div class="v" id="p99">–</div><div class="l">P99 MS</div></div>
-    <div class="ro"><div class="v" id="loss">–</div><div class="l">LOSS %</div></div>
-    <div class="ro"><div class="v" id="bursts">–</div><div class="l">BURSTS · WINDOW</div></div>
+    <div class="ro"><div class="v" id="loss">–</div><div class="l" data-i18n="console.loss">LOSS %</div></div>
+    <div class="ro"><div class="v" id="bursts">–</div><div class="l" data-i18n="console.bursts">BURSTS · WINDOW</div></div>
     <div class="sp"></div>
     <div class="rng">
-      <button id="selReset" style="display:none;color:var(--amber)">✕ selection</button><span>TIME/DIV</span>
+      <button id="selReset" style="display:none;color:var(--amber)">✕ selection</button><span data-i18n="console.timeDiv">TIME/DIV</span>
       <button data-m="60">1h</button>
       <button data-m="240" class="on">4h</button>
       <button data-m="480">8h</button>
@@ -250,14 +255,14 @@ body.light input[type="datetime-local"]{
       <input type="datetime-local" id="customFrom" step="60">
       <span class="sep">→</span>
       <input type="datetime-local" id="customTo" step="60">
-      <button id="customGo">Go</button>
+      <button id="customGo" data-i18n="console.go">Go</button>
     </div>
   </div>
 </div>
 
 <footer>
   <span id="conclusion"></span>
-  <span class="legend" id="legend">Line = per-round median · Smoke = all samples · Red bars = loss% · ◆ = burst</span>
+  <span class="legend" id="legend"><span data-i18n="console.legend">Line = per-round median · Smoke = all samples · Red bars = loss% · ◆ = burst</span></span>
 </footer>
 
 <div class="promos">
@@ -267,13 +272,14 @@ body.light input[type="datetime-local"]{
       <span>This slot is for one VPS / IDC / network sponsor — your GIF here.</span>
       <span style="display:flex; gap:16px; align-items:center;">
         <a href="https://github.com/githubflyideas/SmokeTrail" target="_blank" rel="noopener">SmokeTrail on GitHub</a>
-        <a href="/settings">Settings</a>
-        <a href="#" id="logoutBtn">Sign out</a>
+        <a href="/settings" data-i18n="console.settings">Settings</a>
+        <a href="#" id="logoutBtn" data-i18n="console.signOut">Sign out</a>
       </span>
     </div>
   </div>
 </div>
 
+<script src="/static/i18n.js"></script>
 <script src="/static/echarts.min.js"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -421,7 +427,7 @@ async function renderInner(seq) {
 
   $('legend').textContent = hourly
     ? 'Line = hourly median · Smoke = hourly min/p50/p90/p99/max · Red bars = loss% · ◆ = bursts'
-    : 'Line = per-round median · Smoke = all samples · Red bars = loss% · ◆ = burst';
+    : '<span data-i18n="console.legend">Line = per-round median · Smoke = all samples · Red bars = loss% · ◆ = burst</span>';
   const approx = hourly ? '≈' : '';
   const fmt = v => v === undefined ? '–' : approx + v.toFixed(1);
   ['p50','p90','p99'].forEach((id, i) => {
