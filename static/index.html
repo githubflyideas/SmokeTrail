@@ -165,6 +165,24 @@
             background:var(--screen); border:1px solid var(--line); border-radius:4px; padding:6px 8px; }
   .tgt input:focus, .tgt select:focus { outline:none; border-color:var(--phos); }
   #tgtErr { color:var(--alert); font-size:var(--fs-small); }
+
+/* The browser's default datetime-local chrome is a white box, which reads as a
+   rendering fault in a dark console. color-scheme makes the native picker and the
+   spin controls follow the theme instead of fighting it. */
+input[type="datetime-local"]{
+  color-scheme:dark;
+  background:#11161d;
+  color:#e6edf3;
+  border:1px solid #272e38;
+  border-radius:6px;
+  padding:6px 9px;
+  font:inherit;
+}
+input[type="datetime-local"]:focus{outline:none;border-color:#3fb950}
+html[data-theme="light"] input[type="datetime-local"],
+body.light input[type="datetime-local"]{
+  color-scheme:light;background:#fff;color:#111;border-color:#d0d7de;
+}
 </style>
 </head>
 <body>
