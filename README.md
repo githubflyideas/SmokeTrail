@@ -35,3 +35,6 @@ https://github.com/githubflyideas/SmokeTrail/releases/download/v0.3.2/smoketrail
 * **Server & Node Monitoring**: Track network quality across distributed servers and cloud instances.
 * **Troubleshooting**: Diagnose home/office network instability, VPN drops, or ISP packet loss over custom time ranges.
 * **Route & Line Comparison**: Compare route stability across different ISPs or nodes over 24-hour periods.
+
+<img width="1410" height="731" alt="image" src="https://github.com/user-attachments/assets/911f4656-5f52-4982-8ece-b5b78bbe2d4d" />
+
