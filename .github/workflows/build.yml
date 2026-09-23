@@ -17,12 +17,28 @@ jobs:
       - run: go vet ./...
       - run: go test -race ./...
 
+      # go.sum is not committed yet, so every run above re-resolves the module
+      # graph from the network and a new release of any transitive dependency can
+      # turn this red with no commit behind it. Publishing the resolved go.sum as
+      # an artifact is how it gets committed: download it, add it, and the two
+      # `go mod tidy` lines in this file become `go mod download`.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: go-sum
+          path: go.sum
+          if-no-files-found: warn
+
   # The point of ADR 1: every target below is one `go build` with no toolchain to
   # install. If this job ever needs a matrix of containers, the SQLite driver
   # decision has been undone.
   cross:
     runs-on: ubuntu-latest
     strategy:
+      # Without this, the first target to fail cancels the rest and the log shows
+      # one red X with no way to tell whether one target broke or all six did.
+      # windows/arm64 failed alone for two releases and looked like a total break.
+      fail-fast: false
       matrix:
         include:
           - { goos: windows, goarch: amd64, name: SmokeTrail-windows-amd64.exe }
@@ -51,8 +67,14 @@ jobs:
           name: smoketrail-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/*
 
-  # The M0 gate, run on the platform it was written for. This is the job whose
-  # output decides whether the RTT-distribution premise holds on Windows.
+  # selftest measures the HOST, not the code: clock resolution, scheduler wake
+  # latency, ticker drift. A GitHub runner is a shared VM, so a FAIL here says
+  # something about Azure's scheduler that afternoon and nothing about this
+  # commit — gating on it would be flaky by construction. So this job REPORTS.
+  # The numbers go into the run summary where a human can read them, which is
+  # the whole point: the question selftest answers is whether a given machine
+  # can resolve the RTT differences this project draws, and that question is
+  # asked again on every machine the binary lands on.
   selftest-windows:
     runs-on: windows-latest
     steps:
@@ -61,4 +83,15 @@ jobs:
         with: { go-version: '1.24' }
       - run: go mod tidy
       - run: go test ./...
-      - run: go run . selftest
+      - name: selftest (reported, not gated)
+        shell: bash
+        run: |
+          {
+            echo '### `selftest` on `windows-latest`'
+            echo
+            echo 'Shared CI VM — read this as one data point, not as a verdict on the commit.'
+            echo
+            echo '```'
+            go run . selftest 2>&1
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"

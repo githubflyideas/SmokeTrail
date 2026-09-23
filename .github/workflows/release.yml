@@ -40,11 +40,15 @@ jobs:
 
       # One `go build` per target, no toolchain, no container. If this ever needs
       # more than this, ADR 1 has been undone.
-      - name: stamp the Windows resource (version, icon, manifest)
+      # Pinned, not @latest: this step decides what the version resource of every
+      # shipped .exe says, and a release should not change because an upstream
+      # tool did. gen-resource.sh writes one object per architecture — see the
+      # header in that script for why a single .syso cannot work.
+      - name: stamp the Windows resources (version, icon, manifest)
         run: |
-          go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest
+          go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.4.1
           PATH="$(go env GOPATH)/bin:$PATH" packaging/gen-resource.sh "${{ steps.v.outputs.version }}"
-          git diff --stat -- resource_windows.syso || true
+          git diff --stat -- 'resource_windows_*.syso' || true
 
       - name: cross-build
         env:
