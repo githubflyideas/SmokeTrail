@@ -21,6 +21,7 @@ COMMANDS
   (none) / run     run in the foreground; Ctrl-C stops it
   install          {{INSTALLDESC}}
   uninstall        {{UNINSTALLDESC}}
+  tray             {{TRAYDESC}}
   selftest         measure this machine's clock and scheduler (see below)
   version          print the version
   help             this text
@@ -82,6 +83,13 @@ EXAMPLES
   (1xxx lifecycle, 2xxx degraded, 3xxx failed to start):
     Get-WinEvent -ProviderName SmokeTrail -MaxEvents 30
 
+  The notification-area icon is a separate process, started at sign-in from the
+  all-users Startup folder. It has to be separate: a
+  Windows service runs in Session 0 and cannot display any UI at all. Its menu
+  therefore distinguishes hiding the icon from stopping the service, because
+  those are genuinely different things and conflating them is how people end up
+  believing they closed a program that is still running.
+
   Upgrade: stop the service, replace SmokeTrail.exe, start it again.
 `
 
@@ -114,9 +122,11 @@ func printHelp(w io.Writer) {
 		body = helpWindows
 	}
 	install, uninstall, exe := "(Windows only)", "(Windows only)", "./smoketrail"
+	trayDesc := "(Windows only)"
 	if runtime.GOOS == "windows" {
 		install = "register as a Windows service (asks for elevation)"
 		uninstall = "stop and remove the service (data is kept)"
+		trayDesc = "notification-area icon for an installed service"
 		exe = "SmokeTrail.exe"
 	}
 	t := helpCommon + body + helpFooter
@@ -126,6 +136,7 @@ func printHelp(w io.Writer) {
 		"{{INSTALLDESC}}", install,
 		"{{UNINSTALLDESC}}", uninstall,
 		"{{EXE}}", exe,
+		"{{TRAYDESC}}", trayDesc,
 	)
 	io.WriteString(w, r.Replace(t))
 }

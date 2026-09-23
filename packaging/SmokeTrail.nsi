@@ -143,6 +143,13 @@ Section "SmokeTrail" SecMain
 
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
+  ; All-users Startup, so the icon comes back at every sign-in. A service has no
+  ; window; without this the answer to "it is installed, now what?" is "remember
+  ; a port number and type it into a browser".
+  SetShellVarContext all
+  CreateShortCut "$SMSTARTUP\${APPNAME} tray.lnk" \
+    "$INSTDIR\SmokeTrail.exe" "tray" "$INSTDIR\SmokeTrail.exe" 0
+
   CreateDirectory "$SMPROGRAMS\${APPNAME}"
   CreateShortCut "$SMPROGRAMS\${APPNAME}\${APPNAME} console.lnk" \
     "$INSTDIR\SmokeTrail.exe" "" "$INSTDIR\SmokeTrail.exe" 0
@@ -157,9 +164,20 @@ Section "SmokeTrail" SecMain
     MessageBox MB_ICONSTOP|MB_OK \
       "The files were installed, but the SmokeTrail service could not be registered (exit $0).$\n$\nRun this from an elevated prompt to see why:$\n  $INSTDIR\SmokeTrail.exe install --port $Port"
   ${EndIf}
+
+  ; Start the tray now rather than making the operator sign out and back in.
+  ; It waits for the service to answer before it shows anything.
+  Exec '"$INSTDIR\SmokeTrail.exe" tray'
 SectionEnd
 
 Section "Uninstall"
+  SetShellVarContext all
+
+  ; The tray holds the exe open, so it has to go before anything is deleted.
+  nsExec::ExecToLog 'taskkill /F /IM SmokeTrail.exe /FI "SERVICES eq"'
+  Pop $0
+  Sleep 500
+
   ; Stop and deregister before deleting the binary that knows how to do it.
   nsExec::ExecToLog '"$INSTDIR\SmokeTrail.exe" uninstall'
   Pop $0
@@ -169,6 +187,7 @@ Section "Uninstall"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
 
+  Delete "$SMSTARTUP\${APPNAME} tray.lnk"
   Delete "$SMPROGRAMS\${APPNAME}\${APPNAME} console.lnk"
   Delete "$SMPROGRAMS\${APPNAME}\Uninstall ${APPNAME}.lnk"
   RMDir "$SMPROGRAMS\${APPNAME}"

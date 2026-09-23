@@ -26,6 +26,12 @@ func runServiceVerb(verb string, _ options) int {
 	return 2
 }
 
+// No tray on Unix: the desktop conventions differ per environment and a link
+// monitor there lives under systemd, not in a notification area.
+func runTrayCompanion(options) int { return 2 }
+
+func startForegroundTray(string, func()) {}
+
 func setLogOutput(w io.Writer) {
 	log.SetOutput(w)
 	log.SetFlags(log.LstdFlags)

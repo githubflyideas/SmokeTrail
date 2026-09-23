@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 )
 
@@ -47,7 +48,7 @@ func main() {
 	case "selftest":
 		runSelftest(os.Stdout)
 		return
-	case "run", "install", "uninstall":
+	case "run", "install", "uninstall", "tray":
 		args = args[1:]
 	case "":
 	default:
@@ -69,6 +70,11 @@ func main() {
 	// than telling the operator to go and open a different window.
 	if verb == "install" || verb == "uninstall" {
 		os.Exit(runServiceVerb(verb, opt))
+	}
+	// The tray companion to an installed service: a separate process in the
+	// logged-in user's session, because a service cannot display UI at all.
+	if verb == "tray" {
+		os.Exit(runTrayCompanion(opt))
 	}
 
 	// Started by the service control manager rather than a person: hand over to the
@@ -144,9 +150,19 @@ func serveForeground(opt options) error {
 	}
 	a.banner(portable)
 
+	// Windows only: a tray icon so a double-clicked copy is not a console window
+	// with no other affordance. Closing it from the menu stops the program.
+	quit := make(chan struct{})
+	var once sync.Once
+	startForegroundTray("http://localhost"+portOf(cfg.Listen),
+		func() { once.Do(func() { close(quit) }) })
+
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-	<-sig
+	select {
+	case <-sig:
+	case <-quit:
+	}
 	a.shutdown()
 	log.Printf("SmokeTrail shut down")
 	return nil
