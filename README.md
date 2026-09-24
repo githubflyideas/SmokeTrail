@@ -1,8 +1,8 @@
 # pingping 
 
-> A modern, lightweight, and cross-platform SmokePing alternative for network quality monitoring.
+> A modern, lightweight, and cross-platform SmokePing alternative.
 
-pingping delivers long-term network performance tracking—monitoring latency variations, jitter, and packet loss over time with user-friendly charts. 
+pingping provides long-term network performance monitoring, tracking latency, jitter, and packet loss with clear, user-friendly charts. 
 
 It runs seamlessly across **Windows**, **Linux**, and **macOS**.
 
