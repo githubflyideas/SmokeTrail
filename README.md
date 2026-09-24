@@ -12,13 +12,25 @@ pingping delivers long-term network performance tracking—monitoring latency va
 
 
 ```bash
+Linux-amd64
+https://github.com/githubflyideas/pingping/releases/download/v0.5.3/pingping-linux-amd64
+
+cd /home/
+wget  https://github.com/githubflyideas/pingping/releases/download/v0.5.3/pingping-linux-amd64
+mv pingping-linux-amd64 pingping && chmod +x pingping
+./pingping --port 8518
+#Open http://localhost:8518
+
+
+
+
 Windows
 
-https://github.com/githubflyideas/pingping/releases/download/v0.4.0/pingping-0.4.0-setup.exe
+https://github.com/githubflyideas/pingping/releases/download/v0.5.3/pingping-0.5.3-setup.exe
 
 macos
 
-https://github.com/githubflyideas/pingping/releases/download/v0.4.0/pingping-darwin-arm64
+https://github.com/githubflyideas/pingping/releases/download/v0.5.3/pingping-darwin-arm64
 ```
 ### ✨ Key Features
 
