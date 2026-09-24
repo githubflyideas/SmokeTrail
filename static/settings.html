@@ -106,7 +106,16 @@ dt{color:var(--dim)} dd{margin:0;font-family:ui-monospace,Consolas,monospace;wor
     <p class="sub" data-i18n="settings.brandSub">Replace the mark in the header with your own. It is stored in the database, so a copy of the data carries the brand with it.</p>
     <div class="brandrow">
       <span class="brandprev" id="brandPrev"></span>
-      <input type="file" id="brandFile" accept="image/*,.png,.jpg,.jpeg,.gif,.webp,.bmp" hidden>
+      <!-- No accept filter, on purpose. It was "image/*", then a list of
+           extensions, and in both shapes the Windows dialog opened on a folder
+           that appeared to contain no images at all — the filter decides what
+           you are allowed to see, and when it gets it wrong the file you came
+           for is simply not there. Nothing is gained by filtering here: the
+           server decides by reading the first bytes of whatever arrives, which
+           it has to do anyway, because a filter in the page is a suggestion and
+           a magic number is a fact. Pick the wrong file and you get a sentence
+           telling you so, which is a better failure than an empty folder. -->
+      <input type="file" id="brandFile" hidden>
       <button id="brandPick" data-i18n="settings.brandChoose">Choose an image</button>
       <button id="brandClear" class="ghost hide" data-i18n="settings.brandReset">Use the default mark</button>
     </div>

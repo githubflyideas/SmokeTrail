@@ -52,6 +52,12 @@ func sniffLogo(b []byte) (string, error) {
 	case bytes.HasPrefix(b, []byte("RIFF")) && bytes.Equal(b[8:12], []byte("WEBP")):
 		return "image/webp", nil
 
+	// Named rather than left to the catch-all below, because it is the one format
+	// a Windows machine is likely to be holding and "unrecognised" would leave
+	// someone guessing at what to do about it.
+	case bytes.HasPrefix(b, []byte("BM")):
+		return "", fmt.Errorf("BMP carries no transparency and no compression; save the logo as a PNG instead")
+
 	case bytes.HasPrefix(bytes.TrimLeft(b, " \t\r\n"), []byte("<")):
 		return "", fmt.Errorf("SVG is not accepted because it can carry script; export the logo as a PNG")
 	}
