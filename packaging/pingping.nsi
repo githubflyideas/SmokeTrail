@@ -138,9 +138,17 @@ Section "pingping" SecMain
   ; half done. The service holds the exe, and so does every notification-area
   ; process — `sc stop` asks the first, taskkill takes the rest, and the pause
   ; gives Windows time to release the handles before the copy starts.
+  ; Stop cleanly first, and give it time to finish. Force-killing the service
+  ; process is a crash as far as the SCM is concerned, and this service is
+  ; configured to be restarted after one — so the blunt version triggered the
+  ; recovery action and then raced it, which is how an install that worked
+  ; reported that the service would not start. A clean stop fires no recovery.
+  ; The taskkill afterwards is for the notification-area processes, which hold
+  ; the exe but are not services and will not stop on their own.
   DetailPrint "Stopping any running copy of pingping..."
   nsExec::ExecToLog 'sc stop pingping'
   Pop $0
+  Sleep 4000
   nsExec::ExecToLog 'taskkill /F /IM pingping.exe'
   Pop $0
   Sleep 1500

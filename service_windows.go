@@ -383,9 +383,27 @@ func installService(opt options) error {
 		log.Printf("warning: could not record the console port for the tray icon: %v", err)
 	}
 
+	// Judge by outcome, not by the return code of one call.
+	//
+	// Start can be refused while the SCM is still reconciling a previous stop —
+	// and the installer force-kills the running copy before copying files, which
+	// SCM sees as a crash and answers with the recovery action configured above.
+	// The service then comes up by itself a few seconds later, and an install
+	// that reported failure was looking at the wrong moment: the machine ended up
+	// exactly as intended, and the operator was told it had not.
+	//
+	// So a refused Start is a question, not a verdict. The verdict is whether the
+	// service is running shortly afterwards.
 	if err := s.Start(); err != nil && !alreadyRunning(err) {
-		return afterRegistration{fmt.Errorf(
-			"the %s service is registered but would not start: %w", svcName, err)}
+		if running, werr := waitRunning(s, 20*time.Second); !running {
+			if werr != nil {
+				err = fmt.Errorf("%w (and its state could not be read: %v)", err, werr)
+			}
+			return afterRegistration{fmt.Errorf(
+				"the %s service is registered but would not start: %w", svcName, err)}
+		}
+		log.Printf("note: start was refused (%v) but the service is running — "+
+			"the recovery action brought it up", err)
 	}
 	if reinstalled {
 		log.Printf("updated the existing %s service", svcName)
@@ -588,4 +606,31 @@ func stopAndWait(s *mgr.Service, timeout time.Duration) error {
 
 func alreadyRunning(err error) bool {
 	return errors.Is(err, windows.ERROR_SERVICE_ALREADY_RUNNING)
+}
+
+// waitRunning reports whether the service reaches Running within the timeout.
+// A service that is starting reports StartPending first, and how long it stays
+// there is not ours to decide.
+func waitRunning(s *mgr.Service, timeout time.Duration) (bool, error) {
+	deadline := time.Now().Add(timeout)
+	var last error
+	for {
+		st, err := s.Query()
+		if err != nil {
+			last = err
+		} else {
+			switch st.State {
+			case svc.Running:
+				return true, nil
+			case svc.Stopped:
+				// Stopped and staying stopped is an answer; a recovery restart
+				// would move it to StartPending, so keep looking until the
+				// deadline rather than concluding from one sample.
+			}
+		}
+		if time.Now().After(deadline) {
+			return false, last
+		}
+		time.Sleep(time.Second)
+	}
 }
