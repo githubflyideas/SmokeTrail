@@ -551,7 +551,7 @@ func (t *tray) command(id uint32) {
 		runElevated("cmd.exe", "/c net stop "+svcName+
 			" & net start "+svcName)
 	case idSettings:
-		t.open(t.consoleU + "/settings")
+		t.open(stamped(t.consoleU + "/settings"))
 	case idUpdates:
 		t.open(homepage + "/releases")
 	case idQuitAll:
@@ -623,9 +623,13 @@ func runElevated(exe, args string) {
 	}()
 }
 
-func (t *tray) openConsole() { t.open(t.consoleU) }
+func (t *tray) openConsole() { t.open(stamped(t.consoleU)) }
 
-func (t *tray) open(target string) {
+func (t *tray) open(target string) { shellOpen(target) }
+
+// shellOpen hands a URL or a folder to whatever Windows has registered for it.
+// Package-level because the console verb opens the same URLs without a tray.
+func shellOpen(target string) {
 	windows.ShellExecute(0, windows.StringToUTF16Ptr("open"),
 		windows.StringToUTF16Ptr(target), nil, nil, windows.SW_SHOWNORMAL)
 }

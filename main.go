@@ -48,7 +48,7 @@ func main() {
 	case "selftest":
 		runSelftest(os.Stdout)
 		return
-	case "run", "install", "uninstall", "tray":
+	case "run", "install", "uninstall", "tray", "console":
 		args = args[1:]
 	case "":
 	default:
@@ -75,6 +75,24 @@ func main() {
 	// logged-in user's session, because a service cannot display UI at all.
 	if verb == "tray" {
 		os.Exit(runTrayCompanion(opt))
+	}
+
+	// `console`, and a bare launch of an installed copy, both mean "show me the
+	// console". Only `run` and a portable copy serve in the foreground.
+	//
+	// The distinction matters because the two used to be the same thing: the
+	// Start Menu shortcut passed no arguments, so double-clicking it started a
+	// second server on the port the service already held, which failed to bind
+	// and exited before the window could be read.
+	if verb == "console" || verb == "" {
+		if code, handled := openConsoleForInstalled(opt); handled {
+			os.Exit(code)
+		}
+		if verb == "console" {
+			fmt.Fprintln(os.Stderr, "pingping: no installed service found on this machine.\n"+
+				"Run 'pingping install' first, or 'pingping run' to serve from this folder.")
+			os.Exit(2)
+		}
 	}
 
 	// Started by the service control manager rather than a person: hand over to the

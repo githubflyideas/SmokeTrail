@@ -137,3 +137,69 @@ func TestInstallerReleasesTheExeBeforeOverwritingIt(t *testing.T) {
 			"recovery action, which brings the service back mid-install")
 	}
 }
+
+// A shortcut named "pingping console" that passes no arguments does not open the
+// console — a bare launch of an installed copy used to mean "serve in the
+// foreground", so it started a second server on the port the service already
+// held, failed the bind, and exited before the window could be read. The
+// operator saw a console window flash and vanish, which is what a broken program
+// looks like, and it was the only offered way back after the tray had been told
+// to stop everything and exit.
+func TestConsoleShortcutAsksForTheConsole(t *testing.T) {
+	src := readSource(t, "packaging/pingping.nsi")
+
+	i := strings.Index(src, `console.lnk"`)
+	if i < 0 {
+		t.Fatal("the console shortcut is gone from the installer")
+	}
+	// The arguments are the third field of CreateShortCut, on the continuation
+	// line after the .lnk name.
+	rest := src[i:]
+	if end := strings.Index(rest, "\n\n"); end > 0 {
+		rest = rest[:end]
+	}
+	if !strings.Contains(rest, `"console"`) {
+		t.Errorf("the console shortcut does not pass the console verb:\n%s", rest)
+	}
+}
+
+// Every verb the installer's shortcuts and the tray invoke has to be one main.go
+// actually dispatches, or the program exits 2 with "unknown command" and the
+// shortcut looks broken in exactly the same way.
+func TestShortcutVerbsAreDispatched(t *testing.T) {
+	main := readSource(t, "main.go")
+	nsi := readSource(t, "packaging/pingping.nsi")
+
+	dispatch := main[strings.Index(main, "switch verb {"):]
+	if end := strings.Index(dispatch, "\n\t}"); end > 0 {
+		dispatch = dispatch[:end]
+	}
+
+	// Comments go first: this file explains the very bug being guarded against,
+	// in prose that mentions pingping.exe, and matching that prose found verbs
+	// like "is" and "and".
+	var live []string
+	for _, line := range strings.Split(nsi, "\n") {
+		if t := strings.TrimSpace(line); !strings.HasPrefix(t, ";") {
+			live = append(live, line)
+		}
+	}
+
+	// What the installer asks the exe to do: the argument field of a shortcut,
+	// and the command line of an nsExec call. Both put the verb straight after
+	// the closing quote of the exe path.
+	re := regexp.MustCompile(`pingping\.exe"[ \t]+"?([A-Za-z]\w*)`)
+	seen := map[string]bool{}
+	for _, m := range re.FindAllStringSubmatch(strings.Join(live, "\n"), -1) {
+		seen[m[1]] = true
+	}
+	if len(seen) == 0 {
+		t.Fatal("found no verbs in the installer; the pattern has drifted")
+	}
+	for verb := range seen {
+		if !strings.Contains(dispatch, `"`+verb+`"`) {
+			t.Errorf("the installer runs `pingping.exe %s`, but main.go does not "+
+				"dispatch that verb — it exits 2 with \"unknown command\"", verb)
+		}
+	}
+}

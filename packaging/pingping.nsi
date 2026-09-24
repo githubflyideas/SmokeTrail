@@ -202,9 +202,16 @@ Section "pingping" SecMain
   CreateShortCut "$SMSTARTUP\${APPNAME} tray.lnk" \
     "$INSTDIR\pingping.exe" "tray" "$INSTDIR\pingping.exe" 0
 
+  ; "console", not no-arguments. A bare launch of an installed copy used to mean
+  ; "serve in the foreground", so this shortcut started a second server on the
+  ; port the service already held, failed to bind, and exited before the window
+  ; could be read. The verb brings back the service and the icon if either is
+  ; missing, then opens the browser — which is what someone double-clicking a
+  ; shortcut called "console" is asking for, and the way back in after "Stop
+  ; pingping and exit the tray".
   CreateDirectory "$SMPROGRAMS\${APPNAME}"
   CreateShortCut "$SMPROGRAMS\${APPNAME}\${APPNAME} console.lnk" \
-    "$INSTDIR\pingping.exe" "" "$INSTDIR\pingping.exe" 0
+    "$INSTDIR\pingping.exe" "console" "$INSTDIR\pingping.exe" 0
   CreateShortCut "$SMPROGRAMS\${APPNAME}\Uninstall ${APPNAME}.lnk" "$INSTDIR\uninstall.exe"
 
   ; The service registration itself. We are already elevated, so the exe's own

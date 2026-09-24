@@ -110,8 +110,10 @@
      30x30 the built-in mark needs, it shrank to an unreadable sliver. It gets
      its own height and as much width as it needs, and the built-in wordmark
      next to it goes away — someone who has put their own brand in the header
-     did not ask for "pingping" beside it. */
-  img.brand-ic { width:auto; height:34px; max-width:260px; object-fit:contain; }
+     did not ask for "pingping" beside it. 34px was still too mean: a wordmark
+     that wide is mostly letterforms, and at 34px they were smaller than the
+     body text underneath them. */
+  img.brand-ic { width:auto; height:52px; max-width:380px; object-fit:contain; }
   .hide { display:none; }
   .rng { display:flex; background:var(--panel); border:1px solid var(--line); border-radius:4px; overflow:hidden; }
   .rng span { color:var(--dim); font-family:var(--sans); font-size:var(--fs-micro);

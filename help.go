@@ -18,7 +18,9 @@ USAGE
   {{EXE}} [command] [flags]
 
 COMMANDS
-  (none) / run     run in the foreground; Ctrl-C stops it
+  run              run in the foreground; Ctrl-C stops it
+  (none)           {{BAREDESC}}
+  console          {{CONSOLEDESC}}
   install          {{INSTALLDESC}}
   uninstall        {{UNINSTALLDESC}}
   tray             {{TRAYDESC}}
@@ -122,11 +124,14 @@ func printHelp(w io.Writer) {
 		body = helpWindows
 	}
 	install, uninstall, exe := "(Windows only)", "(Windows only)", "./pingping"
-	trayDesc := "(Windows only)"
+	trayDesc, consoleDesc := "(Windows only)", "(Windows only)"
+	bareDesc := "same as run"
 	if runtime.GOOS == "windows" {
 		install = "register as a Windows service (asks for elevation)"
 		uninstall = "stop and remove the service (data is kept)"
 		trayDesc = "notification-area icon for an installed service"
+		consoleDesc = "open the console; starts the service and icon if they are down"
+		bareDesc = "console if a service is installed here, otherwise run"
 		exe = "pingping.exe"
 	}
 	t := helpCommon + body + helpFooter
@@ -137,6 +142,8 @@ func printHelp(w io.Writer) {
 		"{{UNINSTALLDESC}}", uninstall,
 		"{{EXE}}", exe,
 		"{{TRAYDESC}}", trayDesc,
+		"{{CONSOLEDESC}}", consoleDesc,
+		"{{BAREDESC}}", bareDesc,
 	)
 	io.WriteString(w, r.Replace(t))
 }
