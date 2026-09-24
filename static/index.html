@@ -106,7 +106,12 @@
      turns up. It replaced a blinking dot that suggested live status while
      actually being on a fixed timer. */
   .brand-ic { width:30px; height:30px; flex:none; }
-  img.brand-ic { object-fit:contain; }
+  /* A custom logo is usually a wordmark, and a wordmark is wide. Boxed into the
+     30x30 the built-in mark needs, it shrank to an unreadable sliver. It gets
+     its own height and as much width as it needs, and the built-in wordmark
+     next to it goes away — someone who has put their own brand in the header
+     did not ask for "pingping" beside it. */
+  img.brand-ic { width:auto; height:34px; max-width:260px; object-fit:contain; }
   .hide { display:none; }
   .rng { display:flex; background:var(--panel); border:1px solid var(--line); border-radius:4px; overflow:hidden; }
   .rng span { color:var(--dim); font-family:var(--sans); font-size:var(--fs-micro);
@@ -574,7 +579,11 @@ fetch('/api/version').then(r => r.json()).then(d => {
     // rather than blank.
     if (me && me.has_logo) {
       const img = $('brandLogo'), svg = document.querySelector('svg.brand-ic');
-      img.onload = () => { img.classList.remove('hide'); if (svg) svg.classList.add('hide'); };
+      img.onload = () => {
+        img.classList.remove('hide');
+        if (svg) svg.classList.add('hide');
+        $('brandName')?.classList.add('hide');
+      };
       img.src = '/api/brand/logo';
     }
   }).catch(() => {});

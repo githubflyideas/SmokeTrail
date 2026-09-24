@@ -13,6 +13,13 @@ import (
 // day to day — targets, the admin password — lives in SQLite and is edited in the
 // web console. Nothing is read from a config file, so there is no file to find,
 // no file to back up separately, and no file whose format can drift from the UI.
+// licenceName is what the program calls its own licence, everywhere it says so.
+// It is not translated: it has to match the LICENSE file well enough for a
+// reader to check, and a test asserts that it does. This project shipped four
+// places claiming MIT over an Apache 2.0 LICENSE once, so the claim and the
+// file are pinned to each other rather than both to somebody's memory.
+const licenceName = "Apache License 2.0"
+
 type Config struct {
 	Listen        string
 	DataDir       string
