@@ -26,3 +26,30 @@ func TestLicenceClaimMatchesTheFile(t *testing.T) {
 		t.Errorf("NOTICE does not mention the licence")
 	}
 }
+
+// CreateService fills a zero ServiceType and StartType in for you; UpdateConfig
+// hands the struct straight to ChangeServiceConfig, where zero is invalid rather
+// than "unchanged". One config literal served both paths, so every fresh install
+// worked and every upgrade failed with "the parameter is incorrect", which names
+// no parameter.
+//
+// This is Windows-only code, so this reads it rather than compiling it — the
+// same reason the tray menu tests do.
+func TestServiceConfigIsCompletedBeforeUpdateConfig(t *testing.T) {
+	src := readSource(t, "service_windows.go")
+
+	update := strings.Index(src, "UpdateConfig(c)")
+	if update < 0 {
+		t.Skip("no UpdateConfig call any more")
+	}
+	for _, field := range []string{"c.ServiceType =", "c.StartType ="} {
+		at := strings.Index(src, field)
+		if at < 0 {
+			t.Errorf("%s is never set, so UpdateConfig receives a zero for it", field)
+			continue
+		}
+		if at > update {
+			t.Errorf("%s is set after the UpdateConfig call, not before it", field)
+		}
+	}
+}

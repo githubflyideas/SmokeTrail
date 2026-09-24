@@ -494,6 +494,21 @@ func stripFlags(args []string, names ...string) []string {
 // Reinstalling is now the same code path as installing, which also means the
 // graphical route and `pingping install` cannot diverge.
 func createOrUpdateService(m *mgr.Mgr, exe string, args []string, c mgr.Config) (*mgr.Service, bool, error) {
+	// CreateService fills these in when they are zero; UpdateConfig does not —
+	// it hands the struct straight to ChangeServiceConfig, where a zero service
+	// type is not "leave it alone", it is invalid, and Windows answers "the
+	// parameter is incorrect" without saying which one.
+	//
+	// So the config that worked for every fresh install failed for every upgrade,
+	// from the moment this function learned to update rather than refuse. Both
+	// paths take their defaults from here now, so they cannot disagree again.
+	if c.ServiceType == 0 {
+		c.ServiceType = windows.SERVICE_WIN32_OWN_PROCESS
+	}
+	if c.StartType == 0 {
+		c.StartType = mgr.StartManual
+	}
+
 	s, err := m.OpenService(svcName)
 	if err != nil {
 		s, err = createWaitingOutDeletion(m, exe, c, args)
