@@ -1,4 +1,4 @@
-# pingping 💨
+# pingping 
 
 > A modern, lightweight, and cross-platform SmokePing alternative for network quality monitoring.
 
