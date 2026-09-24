@@ -132,6 +132,25 @@ FunctionEnd
 Section "pingping" SecMain
   SectionIn RO
 
+  ; Write to the 64-bit registry, the same view the program itself uses.
+  ;
+  ; NSIS builds a 32-bit installer, so HKLM\Software\... is silently redirected
+  ; into WOW6432Node — while pingping.exe is a 64-bit process writing the native
+  ; view. The installer and the program were keeping two different sets of keys
+  ; under names that look identical in every screenshot and every reg query that
+  ; does not say which view it means.
+  ;
+  ; This program installs into $PROGRAMFILES64 and runs 64-bit, so the native
+  ; view is where all of it belongs, uninstall entry included.
+  SetRegView 64
+
+  ; An install that predates SetRegView left its keys in the 32-bit view, where
+  ; nothing will ever look for them again.
+  SetRegView 32
+  DeleteRegKey HKLM "${REGKEY}"
+  DeleteRegKey HKLM "Software\${APPNAME}"
+  SetRegView 64
+
   ; Stop whatever is already running before touching the files. Windows will not
   ; let anyone overwrite a running executable, so without this an upgrade fails
   ; with "error opening file for writing" on pingping.exe and leaves the install
@@ -218,6 +237,7 @@ SectionEnd
 
 Section "Uninstall"
   SetShellVarContext all
+  SetRegView 64
 
   ; Deregister first — that stops the service cleanly, and it needs the binary
   ; we are about to delete. Only then kill whatever is left, which is the tray

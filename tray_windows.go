@@ -570,7 +570,7 @@ func (t *tray) command(id uint32) {
 				}
 				time.Sleep(time.Second)
 			}
-			procDestroyWindow.Call(uintptr(t.hwnd))
+			t.quit()
 		}()
 	case idExit:
 		// This had no case at all: the item was drawn in portable mode and did
@@ -581,7 +581,7 @@ func (t *tray) command(id uint32) {
 		if t.onExit != nil && !t.service {
 			t.onExit()
 		}
-		procDestroyWindow.Call(uintptr(t.hwnd))
+		t.quit()
 	case idAbout:
 		t.mu.Lock()
 		st, m := t.status, t.m
@@ -914,4 +914,22 @@ func claimSingleInstance() bool {
 		return true
 	}
 	return lastErr != syscall.Errno(windows.ERROR_ALREADY_EXISTS)
+}
+
+// quit closes the icon from any goroutine.
+//
+// DestroyWindow may only be called by the thread that created the window. This
+// one is created on a locked OS thread that then runs the message loop, so a
+// call from anywhere else fails and does nothing — which is exactly what "Stop
+// pingping and exit the tray" did: it stopped the service and left the icon
+// sitting there, because its wait ran in a goroutine.
+//
+// PostMessage is the cross-thread half of the API and is explicitly safe to call
+// from anywhere; WM_CLOSE reaches the loop and DefWindowProc turns it into the
+// DestroyWindow that had to happen on that thread all along. Everything that
+// wants the icon gone goes through here, so the unsafe call has nowhere left to
+// come back from.
+func (t *tray) quit() {
+	const wmClose = 0x0010
+	procPostMessage.Call(uintptr(t.hwnd), wmClose, 0, 0)
 }

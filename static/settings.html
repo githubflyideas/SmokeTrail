@@ -106,7 +106,7 @@ dt{color:var(--dim)} dd{margin:0;font-family:ui-monospace,Consolas,monospace;wor
     <p class="sub" data-i18n="settings.brandSub">Replace the mark in the header with your own. It is stored in the database, so a copy of the data carries the brand with it.</p>
     <div class="brandrow">
       <span class="brandprev" id="brandPrev"></span>
-      <input type="file" id="brandFile" accept=".png,.jpg,.jpeg,.gif,.webp,image/png,image/jpeg,image/gif,image/webp" hidden>
+      <input type="file" id="brandFile" accept="image/*,.png,.jpg,.jpeg,.gif,.webp,.bmp" hidden>
       <button id="brandPick" data-i18n="settings.brandChoose">Choose an image</button>
       <button id="brandClear" class="ghost hide" data-i18n="settings.brandReset">Use the default mark</button>
     </div>
@@ -312,6 +312,9 @@ window.i18nReady.then(load);
     const d = await res.json().catch(() => ({}));
     if (!res.ok) { msg.textContent = d.error || ('HTTP ' + res.status); return; }
     $('brandFile').value = '';
+    // Say something on success too. A silent success and a silent failure look
+    // identical, and this one has a preview that only changes if it worked.
+    msg.textContent = f.name + ' \u2713';
     draw(true);
   };
 

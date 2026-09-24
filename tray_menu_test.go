@@ -125,3 +125,32 @@ func TestTrayMenuIdsAreUnique(t *testing.T) {
 		t.Fatalf("only found %d menu ids; the pattern has drifted from the code", found)
 	}
 }
+
+// DestroyWindow may only be called by the thread that created the window, and
+// this one lives on a locked OS thread running the message loop. A call from a
+// goroutine fails silently — which is what "Stop pingping and exit the tray"
+// did for a release: it stopped the service and left the icon on screen.
+//
+// So there is exactly one DestroyWindow, in the teardown that already runs on
+// that thread, and everything else posts. This counts rather than reasons,
+// because the failure mode is silence.
+func TestOnlyOneDestroyWindowAndNotInACommand(t *testing.T) {
+	src := trayMenuSource(t)
+
+	if n := strings.Count(src, "procDestroyWindow.Call"); n != 1 {
+		t.Errorf("found %d DestroyWindow calls, want exactly 1 (in remove()); "+
+			"anything reachable from a goroutine must post WM_CLOSE instead", n)
+	}
+
+	cmd := src[strings.Index(src, "func (t *tray) command("):]
+	if end := strings.Index(cmd, "\nfunc "); end > 0 {
+		cmd = cmd[:end]
+	}
+	if strings.Contains(cmd, "procDestroyWindow.Call") {
+		t.Error("command() calls DestroyWindow directly; it must go through quit() " +
+			"so a handler that later moves into a goroutine does not break silently")
+	}
+	if !strings.Contains(src, "func (t *tray) quit()") {
+		t.Error("quit() is gone; the cross-thread-safe exit path is the invariant here")
+	}
+}
