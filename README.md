@@ -50,8 +50,3 @@ https://github.com/githubflyideas/pingping/releases/download/v0.5.3/pingping-dar
 * **Troubleshooting**: Diagnose home/office network instability, VPN drops, or ISP packet loss over custom time ranges.
 * **Route & Line Comparison**: Compare route stability across different ISPs or nodes over 24-hour periods.
 
-  
-### ✨ Quick Comparison    [PINGPING] VS [FOGPING] VS [pingping]
-
-<img width="1410" height="731" alt="image" src="https://github.com/user-attachments/assets/911f4656-5f52-4982-8ece-b5b78bbe2d4d" />
-
