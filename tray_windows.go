@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -58,6 +59,7 @@ const (
 	idDataFolder   = 1006
 	idExit         = 1008
 	idSettings     = 1009
+	idQuitAll      = 1010
 	idUpdates      = 1012
 	idAbout        = 1013
 
@@ -91,6 +93,7 @@ var (
 	procCreateIconFromResEx = user32.NewProc("CreateIconFromResourceEx")
 	procLoadCursor          = user32.NewProc("LoadCursorW")
 	procShellNotifyIcon     = shell32.NewProc("Shell_NotifyIconW")
+	procCreateMutex         = kernel32.NewProc("CreateMutexW")
 	procGetModuleHandle     = kernel32.NewProc("GetModuleHandleW")
 	procFreeConsole         = kernel32.NewProc("FreeConsole")
 	procGetConsoleWindow    = kernel32.NewProc("GetConsoleWindow")
@@ -502,7 +505,11 @@ func (t *tray) showMenu() {
 	// honesty instead: under a service this closes the icon and says so.
 	add(h, mfSeparator, 0, "")
 	if t.service {
+		// Two different intentions, spelled out rather than guessed at. Closing
+		// the icon and stopping the monitoring are not the same act, and an icon
+		// that offers only the first leaves no way to answer "make it stop".
 		add(h, mfString, idExit, m.CloseIconItem)
+		add(h, mfString, idQuitAll, m.QuitAllItem)
 	} else {
 		add(h, mfString, idExit, m.ExitItem)
 	}
@@ -547,6 +554,24 @@ func (t *tray) command(id uint32) {
 		t.open(t.consoleU + "/settings")
 	case idUpdates:
 		t.open(homepage + "/releases")
+	case idQuitAll:
+		// Stopping a service needs elevation, so this asks Windows for consent
+		// rather than failing with an access denied the user cannot act on. The
+		// icon then waits for the console to actually stop answering before it
+		// goes, so what the operator sees matches what happened — including
+		// when they decline the prompt and nothing stops.
+		runElevated("cmd.exe", "/c net stop "+svcName)
+		go func() {
+			client := &http.Client{Timeout: 2 * time.Second}
+			deadline := time.Now().Add(25 * time.Second)
+			for time.Now().Before(deadline) {
+				if _, err := client.Get(t.consoleU + "/api/health"); err != nil {
+					break // it is down, or on its way
+				}
+				time.Sleep(time.Second)
+			}
+			procDestroyWindow.Call(uintptr(t.hwnd))
+		}()
 	case idExit:
 		// This had no case at all: the item was drawn in portable mode and did
 		// nothing when clicked, and onExit was stored and never called.
@@ -807,6 +832,22 @@ func startForegroundTray(consoleURL string, stop func()) {
 func runTrayCompanion(opt options) int {
 	detachConsole()
 
+	// One icon, however many times this is launched. The installer starts the
+	// tray directly so the operator does not have to sign out and back in, and
+	// the all-users Startup shortcut starts it again at the next sign-in — and a
+	// failed install that was retried leaves one behind each time. Three copies
+	// of the same icon appeared in the notification area, none of which could be
+	// told apart or, before this release, closed.
+	//
+	// Global\ rather than Local\: the service runs in session 0 and the tray in
+	// the user's session, and an installer running elevated is a third. The
+	// handle is deliberately never released — the kernel drops it when the
+	// process ends, which is exactly the lifetime being claimed.
+	if !claimSingleInstance() {
+		log.Printf("another pingping tray is already running")
+		return 0
+	}
+
 	// The Startup shortcut carries no arguments, so the port has to come from
 	// what install recorded. Defaulting to 8518 here is what made the icon
 	// silently never appear on an instance installed on any other port.
@@ -854,4 +895,19 @@ func portNumber(listen string) int {
 		n = 8518
 	}
 	return n
+}
+
+// claimSingleInstance reports whether this process is the first tray. A named
+// mutex is the ordinary Windows way to ask; it needs no file, no port and no
+// cleanup path that can be skipped by a crash.
+func claimSingleInstance() bool {
+	name, err := windows.UTF16PtrFromString(`Global\pingping-tray`)
+	if err != nil {
+		return true // cannot ask; better a second icon than none at all
+	}
+	h, _, lastErr := procCreateMutex.Call(0, 0, uintptr(unsafe.Pointer(name)))
+	if h == 0 {
+		return true
+	}
+	return lastErr != syscall.Errno(windows.ERROR_ALREADY_EXISTS)
 }

@@ -70,6 +70,7 @@ func TestRunnerRenameKeepsRing(t *testing.T) {
 	defer s.Close()
 	tg, _ := s.CreateTarget(TargetCfg{Name: "old", Type: "tcp", Host: "127.0.0.1", Port: 1, IntervalSec: 3600})
 	r := NewRunner(ProbeCfg{Packets: 1, TimeoutMs: 50}, s, NewDetector(s))
+	defer r.Stop()
 	r.Reload()
 	time.Sleep(200 * time.Millisecond) // first round runs immediately
 	tg.Name = "new"
@@ -87,6 +88,7 @@ func TestWebWriteGates(t *testing.T) {
 	s, _ := NewStore(t.TempDir(), nil)
 	defer s.Close()
 	run := NewRunner(ProbeCfg{Packets: 1, TimeoutMs: 50}, s, NewDetector(s))
+	defer run.Stop()
 	h := newMux(&Config{}, s, run)
 	body := `{"type":"tcp","host":"127.0.0.1","port":1,"interval_sec":3600}`
 

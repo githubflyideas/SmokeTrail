@@ -94,6 +94,7 @@
   /* Account controls belong where a web console puts them — top right, above the
      fold, in the order a hand reaches for them. They used to sit in the footer
      promo box, which meant signing out required scrolling past the chart. */
+  header > .pill { align-self:center; }
   .hdr-actions { margin-left:auto; align-self:center; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .hdr-actions .pill { text-decoration:none; }
   .hdr-actions a.pill:hover { border-color:var(--phos); color:var(--phos); }
@@ -211,8 +212,11 @@ body.light input[type="datetime-local"]{
       <path stroke="var(--alert)" d="M13.3,19.5 13.8,17.8 14.2,15.5 14.7,12.8 15.1,10.3 15.6,8.4 16.0,7.7 16.4,8.4 16.9,10.3 17.3,12.8 17.8,15.5 18.2,17.8 18.7,19.5"/>
     </svg><img class="brand-ic hide" id="brandLogo" alt=""><span id="brandName">pingping</span></div>
   <div class="tag" data-i18n="console.tagline">One binary. One graph. One metric: Latency.</div>
+  <!-- Targets is a content action — it changes what this host measures — so it
+       belongs beside the title, not among the account and appearance controls on
+       the right. Mixed in there it read as one more setting. -->
+  <button class="pill" id="editBtn" title="add, edit or remove targets" style="display:none" data-i18n="console.targets">✎ targets</button>
   <div class="hdr-actions">
-    <button class="pill" id="editBtn" title="add, edit or remove targets" style="display:none" data-i18n="console.targets">✎ targets</button>
     <button class="pill" id="themeBtn" title="switch theme">◐ <span id="themeName">dark</span></button>
     <span data-i18n-picker></span>
     <a class="pill" href="/settings" data-i18n="console.settings">Settings</a>

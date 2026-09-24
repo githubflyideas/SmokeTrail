@@ -97,3 +97,31 @@ func TestTrayAlwaysOffersAWayOut(t *testing.T) {
 		}
 	}
 }
+
+// Two menu items sharing a command id means clicking one silently performs the
+// other. The compiler only notices when both have a case in the same switch —
+// idQuitAll was given 1009, which idSettings already held, and that collision
+// was caught by a duplicate-case error rather than by anything checking ids.
+func TestTrayMenuIdsAreUnique(t *testing.T) {
+	src := trayMenuSource(t)
+
+	block := src[strings.Index(src, "idOpenConsole"):]
+	if end := strings.Index(block, "idLangBase"); end > 0 {
+		block = block[:end]
+	}
+
+	re := regexp.MustCompile(`(id\w+)\s*=\s*(\d+)`)
+	seen := map[string]string{}
+	found := 0
+	for _, m := range re.FindAllStringSubmatch(block, -1) {
+		name, val := m[1], m[2]
+		found++
+		if prev, dup := seen[val]; dup {
+			t.Errorf("%s and %s are both %s: one of them silently runs the other", prev, name, val)
+		}
+		seen[val] = name
+	}
+	if found < 5 {
+		t.Fatalf("only found %d menu ids; the pattern has drifted from the code", found)
+	}
+}

@@ -11,6 +11,7 @@ import (
 // running. One mutex, one writer path; the web handlers only read snapshots.
 type Runner struct {
 	mu    sync.Mutex
+	wg    sync.WaitGroup
 	probe ProbeCfg
 	store *Store
 	det   *Detector
@@ -69,7 +70,11 @@ func (r *Runner) apply(fresh []TargetCfg) {
 		}
 		stop := make(chan struct{})
 		r.live[id] = liveTarget{cfg: t, stop: stop}
-		go probeLoop(t, r.probe, r.store, r.det, stop)
+		r.wg.Add(1)
+		go func(t TargetCfg, stop chan struct{}) {
+			defer r.wg.Done()
+			probeLoop(t, r.probe, r.store, r.det, stop)
+		}(t, stop)
 		log.Printf("[%s] probing %s", t.Name, targetAddr(t))
 	}
 }
@@ -84,4 +89,25 @@ func (r *Runner) Targets() []TargetCfg {
 	r.mu.Unlock()
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out
+}
+
+// Stop ends every probe loop and waits for them to actually be gone.
+//
+// Waiting is the point. Closing the stop channels only asks; a loop may be
+// mid-probe and about to write a round. Whoever calls this next closes the
+// store or deletes the directory under it, and on Windows a file that is still
+// open cannot be deleted at all — which is how a leaked probe goroutine turns
+// into a test that passes on Linux and fails on Windows, having nothing to do
+// with the code under test.
+func (r *Runner) Stop() {
+	r.mu.Lock()
+	for id, lt := range r.live {
+		close(lt.stop)
+		delete(r.live, id)
+	}
+	r.mu.Unlock()
+
+	// Outside the lock: probeLoop does not touch the Runner, but holding it
+	// across a Wait is how this would deadlock the first time that changes.
+	r.wg.Wait()
 }

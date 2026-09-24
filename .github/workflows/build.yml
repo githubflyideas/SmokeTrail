@@ -140,7 +140,35 @@ jobs:
       - uses: actions/setup-go@v5
         with: { go-version: '1.24' }
       - run: go mod tidy
-      - run: go test ./...
+
+      # The output goes into the run summary, not only the log. This job failed
+      # for two releases saying nothing but "Process completed with exit code 1",
+      # and finding out which test needed someone to open the log by hand — on
+      # the one platform whose failures cannot be reproduced anywhere else in
+      # this pipeline. It still gates: the last line re-raises the failure.
+      - name: go test
+        id: wintest
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          go test ./... 2>&1 | tee "$RUNNER_TEMP/test.log"
+      - name: report the test result
+        shell: bash
+        run: |
+          {
+            echo '### `go test` on `windows-latest` — ${{ steps.wintest.outcome }}'
+            echo
+            echo '```'
+            tail -120 "$RUNNER_TEMP/test.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "${{ steps.wintest.outcome }}" = success ]
+
+      # selftest measures the host, so it reports rather than gates — see the
+      # comment on this job. It said that already and did the opposite: GitHub
+      # runs `shell: bash` with `set -eo pipefail`, so a non-zero exit inside the
+      # group failed the step. The exit code is swallowed deliberately now.
       - name: selftest (reported, not gated)
         shell: bash
         run: |
@@ -150,6 +178,6 @@ jobs:
             echo 'Shared CI VM — read this as one data point, not as a verdict on the commit.'
             echo
             echo '```'
-            go run . selftest 2>&1
+            go run . selftest 2>&1 || echo "(selftest exited non-zero: $?)"
             echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"

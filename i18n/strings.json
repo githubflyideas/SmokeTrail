@@ -1163,6 +1163,18 @@
       "de": "Dieses Symbol schließen (der Dienst läuft weiter)",
       "ja": "このアイコンを閉じる（サービスは動作を続けます）",
       "ko": "이 아이콘 닫기 (서비스는 계속 실행됩니다)"
+    },
+    "tray.quitAll": {
+      "en": "Stop pingping and close this icon",
+      "zh": "停止 pingping 并关闭图标",
+      "es": "Detener pingping y cerrar este icono",
+      "fr": "Arrêter pingping et fermer cette icône",
+      "pt": "Parar o pingping e fechar este ícone",
+      "ru": "Остановить pingping и закрыть значок",
+      "id": "Hentikan pingping dan tutup ikon ini",
+      "de": "pingping beenden und dieses Symbol schließen",
+      "ja": "pingping を停止してこのアイコンを閉じる",
+      "ko": "pingping 중지하고 이 아이콘 닫기"
     }
   }
 }

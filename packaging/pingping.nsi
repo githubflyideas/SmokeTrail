@@ -75,9 +75,19 @@ Page custom PortPageCreate PortPageLeave
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 
+; The same ten the console and the notification icon speak, in the same order.
+; An installer that offers three while the program offers ten tells the user the
+; translation is partial before they have even seen it.
 !insertmacro MUI_LANGUAGE "English"
-!insertmacro MUI_LANGUAGE "Japanese"
 !insertmacro MUI_LANGUAGE "SimpChinese"
+!insertmacro MUI_LANGUAGE "Spanish"
+!insertmacro MUI_LANGUAGE "French"
+!insertmacro MUI_LANGUAGE "PortugueseBR"
+!insertmacro MUI_LANGUAGE "Russian"
+!insertmacro MUI_LANGUAGE "Indonesian"
+!insertmacro MUI_LANGUAGE "German"
+!insertmacro MUI_LANGUAGE "Japanese"
+!insertmacro MUI_LANGUAGE "Korean"
 
 Var PortDialog
 Var PortField
@@ -121,6 +131,19 @@ FunctionEnd
 
 Section "pingping" SecMain
   SectionIn RO
+
+  ; Stop whatever is already running before touching the files. Windows will not
+  ; let anyone overwrite a running executable, so without this an upgrade fails
+  ; with "error opening file for writing" on pingping.exe and leaves the install
+  ; half done. The service holds the exe, and so does every notification-area
+  ; process — `sc stop` asks the first, taskkill takes the rest, and the pause
+  ; gives Windows time to release the handles before the copy starts.
+  DetailPrint "Stopping any running copy of pingping..."
+  nsExec::ExecToLog 'sc stop pingping'
+  Pop $0
+  nsExec::ExecToLog 'taskkill /F /IM pingping.exe'
+  Pop $0
+  Sleep 1500
 
   SetOutPath "$INSTDIR"
   File /oname=pingping.exe "${SRCEXE}"

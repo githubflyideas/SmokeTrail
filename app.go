@@ -89,10 +89,18 @@ func startApp(cfg *Config, portOverride int) (*app, error) {
 // shutdown stops probing and housekeeping, drains the console, and makes the final
 // flush. Safe to call once.
 func (a *app) shutdown() {
-	close(a.stopC)
+	close(a.stopC) // housekeeping: rollup, retention, reclaim
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	a.srv.Shutdown(ctx)
+
+	// Then the probe loops, and wait for them. This line was missing: stopC is
+	// the app's own channel and the Runner owns a separate stop per target, so
+	// the store below was being closed while probes were still writing to it.
+	// The order matters — probes, then console, then the final flush — because
+	// each one can still use what the next one closes.
+	a.run.Stop()
+
 	if err := a.store.Close(); err != nil { // final flush; waits for in-flight queries
 		log.Printf("close: %v", err)
 	}
