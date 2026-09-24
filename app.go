@@ -22,7 +22,7 @@ type app struct {
 	store *Store
 	run   *Runner
 	srv   *http.Server
-	ln    net.Listener
+	lns   []net.Listener
 	stopC chan struct{}
 }
 
@@ -74,28 +74,77 @@ func startApp(cfg *Config, portOverride int, bindOverridden bool) (*app, error) 
 		return nil, fmt.Errorf("load targets: %w", err)
 	}
 
-	ln, err := net.Listen("tcp", cfg.Listen)
+	lns, err := listenOn(cfg.Listen)
 	if err != nil {
 		store.Close()
-		return nil, fmt.Errorf("cannot listen on %s: %w", cfg.Listen, err)
+		return nil, err
 	}
 
 	a := &app{
 		cfg:   cfg,
 		store: store,
 		run:   run,
-		ln:    ln,
+		lns:   lns,
 		stopC: make(chan struct{}),
 		srv:   &http.Server{Handler: newMux(cfg, store, run)},
 	}
 	go store.flushLoop(a.stopC)
 	go housekeeping(cfg, store, a.stopC)
-	go func() {
-		if err := a.srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			log.Printf("web server: %v", err)
-		}
-	}()
+	for _, ln := range lns {
+		go func(ln net.Listener) {
+			if err := a.srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+				log.Printf("web server on %s: %v", ln.Addr(), err)
+			}
+		}(ln)
+	}
 	return a, nil
+}
+
+// listenOn opens the console's listeners. Loopback needs two of them, and that
+// is the whole reason this function exists.
+//
+// Go picks the socket family from the address: a wildcard like 0.0.0.0 is a
+// wildcard in favoriteAddrFamily, so Go opens AF_INET6 with ipv6only=false and
+// one socket serves both families. 127.0.0.1 is not a wildcard, so Go opens
+// AF_INET and the socket serves IPv4 only — which means a browser that resolves
+// localhost to ::1, as Windows does, gets connection refused from a console that
+// is running perfectly well.
+//
+// That is not a theoretical concern: changing the default from 0.0.0.0 to
+// 127.0.0.1 turned a working install into one that could not be opened at all,
+// on a machine whose own netstat had been showing [::1] connections the whole
+// time. "This machine only" means both of this machine's loopback addresses, so
+// bind both and require only that one of them succeeds — a host with IPv6
+// disabled is normal, and so is one with no IPv4 loopback.
+// bindTargets expands a bind address into the addresses actually opened. It is
+// separate from listenOn so the decision can be tested on a host that has no
+// IPv6 at all, which is where this fix was written.
+func bindTargets(host string) []string {
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return []string{"127.0.0.1", "::1"}
+	}
+	return []string{host}
+}
+
+func listenOn(addr string) ([]net.Listener, error) {
+	host, port := hostOf(addr), portOf(addr)
+
+	var lns []net.Listener
+	var firstErr error
+	for _, h := range bindTargets(host) {
+		ln, err := net.Listen("tcp", net.JoinHostPort(h, port[1:]))
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		lns = append(lns, ln)
+	}
+	if len(lns) == 0 {
+		return nil, fmt.Errorf("cannot listen on %s: %w", addr, firstErr)
+	}
+	return lns, nil
 }
 
 // shutdown stops probing and housekeeping, drains the console, and makes the final

@@ -214,3 +214,123 @@ func TestInstallRefusesTheBindFlag(t *testing.T) {
 			"that setting on Windows")
 	}
 }
+
+// hostHasLoopback reports whether this machine can listen on a given loopback
+// address at all. CI has IPv6; the sandbox this was written in does not; a
+// hardened host may have neither. The test below adapts rather than assuming.
+func hostHasLoopback(addr string) bool {
+	ln, err := net.Listen("tcp", net.JoinHostPort(addr, "0"))
+	if err != nil {
+		return false
+	}
+	ln.Close()
+	return true
+}
+
+// "This machine only" means every loopback address this machine has.
+//
+// Go picks the socket family from the address: 0.0.0.0 is a wildcard, so it
+// opens AF_INET6 with ipv6only=false and one socket serves both families.
+// 127.0.0.1 is not a wildcard, so it opens AF_INET and serves IPv4 alone. That
+// difference turned a working install into one that could not be opened at all
+// the moment the default changed from the first to the second, because Windows
+// resolves localhost to ::1 — on a machine whose own netstat had been showing
+// [::1] connections the whole time.
+func TestLoopbackListensOnEveryLoopbackFamily(t *testing.T) {
+	lns, err := listenOn("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listenOn(loopback): %v", err)
+	}
+	defer func() {
+		for _, ln := range lns {
+			ln.Close()
+		}
+	}()
+
+	got := map[string]bool{}
+	for _, ln := range lns {
+		host, _, _ := net.SplitHostPort(ln.Addr().String())
+		got[host] = true
+	}
+	for _, want := range []string{"127.0.0.1", "::1"} {
+		if !hostHasLoopback(want) {
+			continue // this host does not have that family; nothing to expect
+		}
+		if !got[want] {
+			t.Errorf("a loopback console does not listen on %s, which this machine has: "+
+				"a client resolving localhost to that address gets connection refused "+
+				"from a console that is running perfectly well", want)
+		}
+	}
+}
+
+// The port has to be the same one on both, or "the console is on 8518" stops
+// being true depending on which address you reach it by.
+func TestLoopbackListenersShareThePort(t *testing.T) {
+	lns, err := listenOn("127.0.0.1:8793")
+	if err != nil {
+		t.Fatalf("listenOn: %v", err)
+	}
+	defer func() {
+		for _, ln := range lns {
+			ln.Close()
+		}
+	}()
+	for _, ln := range lns {
+		if _, port, _ := net.SplitHostPort(ln.Addr().String()); port != "8793" {
+			t.Errorf("listener on %s is on port %s, want 8793", ln.Addr(), port)
+		}
+	}
+}
+
+// A specific interface address is one listener, not a family sweep: asking for
+// 0.0.0.0 or for one NIC means what it says.
+func TestNonLoopbackBindIsExactlyWhatWasAsked(t *testing.T) {
+	lns, err := listenOn("0.0.0.0:0")
+	if err != nil {
+		t.Fatalf("listenOn(wildcard): %v", err)
+	}
+	defer func() {
+		for _, ln := range lns {
+			ln.Close()
+		}
+	}()
+	if len(lns) != 1 {
+		t.Fatalf("a wildcard bind opened %d listeners, want 1 — Go already makes "+
+			"that socket dual-stack", len(lns))
+	}
+}
+
+// And a bind nothing can satisfy still fails, rather than quietly serving on
+// nothing at all.
+func TestListenOnFailsWhenNothingCanBind(t *testing.T) {
+	if _, err := listenOn("10.99.99.99:0"); err == nil {
+		t.Fatal("listenOn accepted an address this machine has no interface for")
+	}
+}
+
+// The decision, separated from the network so it can be checked on a host with
+// no IPv6 — which is where this fix was written, and exactly the kind of host
+// that would have let the bug through a second time.
+func TestBindTargetsExpandsLoopbackToBothFamilies(t *testing.T) {
+	for host, want := range map[string][]string{
+		"127.0.0.1":    {"127.0.0.1", "::1"},
+		"127.0.0.53":   {"127.0.0.1", "::1"},
+		"::1":          {"127.0.0.1", "::1"},
+		"0.0.0.0":      {"0.0.0.0"},
+		"::":           {"::"},
+		"192.168.1.10": {"192.168.1.10"},
+	} {
+		got := bindTargets(host)
+		if len(got) != len(want) {
+			t.Errorf("bindTargets(%q) = %v, want %v", host, got, want)
+			continue
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("bindTargets(%q) = %v, want %v", host, got, want)
+				break
+			}
+		}
+	}
+}
