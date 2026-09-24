@@ -48,6 +48,9 @@ dt{color:var(--dim)} dd{margin:0;font-family:ui-monospace,Consolas,monospace;wor
 .lang-picker:focus{outline:none;border-color:#3fb950}
 .lang-picker option{background:#161b22;color:#e6edf3}
   .brandrow { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:10px 0 6px; }
+  #brandDrop { border:1px dashed transparent; border-radius:10px; padding:8px;
+               margin:-8px -8px 0; transition:border-color .12s, background .12s; }
+  #brandDrop.over { border-color:var(--phos); background:rgba(127,255,191,.06); }
   .brandprev { width:72px; height:72px; border:1px solid var(--line); border-radius:8px;
                display:flex; align-items:center; justify-content:center; overflow:hidden;
                background:var(--panel); flex:none; }
@@ -104,7 +107,7 @@ dt{color:var(--dim)} dd{margin:0;font-family:ui-monospace,Consolas,monospace;wor
   <section id="secBrand" class="hide">
     <h2 data-i18n="settings.brandTitle">Console logo</h2>
     <p class="sub" data-i18n="settings.brandSub">Replace the mark in the header with your own. It is stored in the database, so a copy of the data carries the brand with it.</p>
-    <div class="brandrow">
+    <div class="brandrow" id="brandDrop">
       <span class="brandprev" id="brandPrev"></span>
       <!-- No accept filter, on purpose. It was "image/*", then a list of
            extensions, and in both shapes the Windows dialog opened on a folder
@@ -119,6 +122,7 @@ dt{color:var(--dim)} dd{margin:0;font-family:ui-monospace,Consolas,monospace;wor
       <button id="brandPick" data-i18n="settings.brandChoose">Choose an image</button>
       <button id="brandClear" class="ghost hide" data-i18n="settings.brandReset">Use the default mark</button>
     </div>
+    <p class="sub" data-i18n="settings.brandDrop">Drag an image here, or paste one, or choose a file.</p>
     <p class="sub" data-i18n="settings.brandFormats">PNG, JPEG, GIF or WebP, up to 256 KB. SVG is not accepted because it can carry script.</p>
     <p class="msg" id="brandMsg"></p>
   </section>
@@ -303,16 +307,14 @@ window.i18nReady.then(load);
     draw(!!me.has_logo);
   }).catch(() => {});
 
-  $('brandPick').onclick = () => $('brandFile').click();
-  $('brandFile').onchange = async () => {
-    const f = $('brandFile').files[0];
+  // Raw bytes, not multipart: there is one field and the server sniffs the
+  // content anyway, so a form encoding would only add a parser. The header is
+  // declared rather than left to the File object, because every write on these
+  // pages declares one — a test enforces it, after a missing Content-Type once
+  // made every login look like a wrong password.
+  async function upload(f) {
     if (!f) return;
     msg.textContent = '';
-    // Raw bytes, not multipart: there is one field and the server sniffs the
-    // content anyway, so a form encoding would only add a parser. The header is
-    // declared rather than left to the File object, because every write on these
-    // pages declares one — a test enforces it, after a missing Content-Type once
-    // made every login look like a wrong password.
     const res = await fetch('/api/brand/logo', {
       method: 'POST',
       headers: { 'Content-Type': f.type || 'application/octet-stream' },
@@ -323,9 +325,37 @@ window.i18nReady.then(load);
     $('brandFile').value = '';
     // Say something on success too. A silent success and a silent failure look
     // identical, and this one has a preview that only changes if it worked.
-    msg.textContent = f.name + ' \u2713';
+    msg.textContent = (f.name || 'image') + ' \u2713';
     draw(true);
-  };
+  }
+
+  $('brandPick').onclick = () => $('brandFile').click();
+  $('brandFile').onchange = () => upload($('brandFile').files[0]);
+
+  // Dropping the file is the way past the file dialog rather than a shortcut
+  // around it. The dialog has no image filter — it cannot have one that is
+  // guaranteed not to hide the file you came for — so it lists everything, and
+  // on a crowded desktop that is a lot to scroll. Dragging the logo in skips
+  // the whole question, and so does pasting one from the clipboard.
+  const drop = $('brandDrop');
+  ['dragenter', 'dragover'].forEach(e => drop.addEventListener(e, ev => {
+    ev.preventDefault();
+    drop.classList.add('over');
+  }));
+  ['dragleave', 'drop'].forEach(e => drop.addEventListener(e, ev => {
+    ev.preventDefault();
+    drop.classList.remove('over');
+  }));
+  drop.addEventListener('drop', ev => {
+    const dt = ev.dataTransfer;
+    if (dt && dt.files && dt.files.length) upload(dt.files[0]);
+  });
+  document.addEventListener('paste', ev => {
+    if ($('secBrand').classList.contains('hide')) return;
+    for (const it of (ev.clipboardData ? ev.clipboardData.items : [])) {
+      if (it.kind === 'file') { upload(it.getAsFile()); return; }
+    }
+  });
 
   clear.onclick = async () => {
     const res = await fetch('/api/brand/logo', { method: 'DELETE' });

@@ -10,6 +10,11 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unsafe"
+
+	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/svc"
+	"golang.org/x/sys/windows/svc/mgr"
 )
 
 // The Start Menu shortcut named "pingping console" ran pingping.exe with no
@@ -40,14 +45,28 @@ func openConsoleForInstalled(opt options) (int, bool) {
 	}
 	base := fmt.Sprintf("http://localhost:%d", port)
 
-	// Ask the console itself rather than the SCM. It is the same question the
-	// tray icon asks, it needs no privilege, and "the service says it is running
-	// but nothing answers on the port" is a state that should send us down the
-	// restart path too.
-	client := &http.Client{Timeout: 2 * time.Second}
+	// Opening a console must not demand administrator rights. The first version
+	// of this verb went straight to `net start` whenever the port did not answer,
+	// which put a UAC prompt in front of someone who had asked for nothing more
+	// than a web page — and an elevation prompt with no explanation attached is
+	// exactly what teaches people not to trust a program.
+	//
+	// So: ask the console first, because that costs nothing and answers the
+	// common case. Only if it is silent, ask the SCM whether the service is
+	// actually stopped — a query any authenticated user may make — and only if
+	// it is, ask the person before elevating. A service that claims to be
+	// running while nothing answers is a different fault, and restarting it is
+	// not this command's decision to make.
+	client := &http.Client{Timeout: 3 * time.Second}
 	if !answers(client, base) {
-		log.Printf("the %s service is not answering on %s — starting it", svcName, base)
-		runElevated("cmd.exe", "/c net start "+svcName)
+		if stopped, known := serviceIsStopped(); known && stopped {
+			if askToStartService() {
+				runElevated("cmd.exe", "/c net start "+svcName)
+			}
+		} else {
+			log.Printf("nothing is answering on %s, and the %s service does not "+
+				"report itself stopped", base, svcName)
+		}
 	}
 
 	// And the icon. Spawning this unconditionally is safe: the tray claims a
@@ -64,6 +83,55 @@ func openConsoleForInstalled(opt options) (int, bool) {
 	}
 	openInBrowser(stamped(base))
 	return 0, true
+}
+
+// serviceIsStopped reports whether the service is registered and not running.
+//
+// It opens the SCM with SC_MANAGER_CONNECT and the service with
+// SERVICE_QUERY_STATUS rather than going through mgr.Connect, which asks for
+// SC_MANAGER_ALL_ACCESS and therefore fails without elevation. Asking a
+// question in order to decide whether elevation is needed must not itself need
+// elevation.
+//
+// known is false when the question could not be answered at all — no service,
+// no access — and the caller then does nothing rather than guessing.
+func serviceIsStopped() (stopped, known bool) {
+	scm, err := windows.OpenSCManager(nil, nil, windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return false, false
+	}
+	defer windows.CloseServiceHandle(scm)
+
+	name, err := windows.UTF16PtrFromString(svcName)
+	if err != nil {
+		return false, false
+	}
+	h, err := windows.OpenService(scm, name, windows.SERVICE_QUERY_STATUS)
+	if err != nil {
+		return false, false
+	}
+	s := &mgr.Service{Name: svcName, Handle: h}
+	defer s.Close()
+
+	st, err := s.Query()
+	if err != nil {
+		return false, false
+	}
+	// StartPending counts as running: it is on its way up and starting it again
+	// would only produce an error dialog.
+	return st.State != svc.Running && st.State != svc.StartPending, true
+}
+
+// askToStartService puts the elevation in context before Windows asks for it.
+// The UAC prompt says nothing about why, so this says it first.
+func askToStartService() bool {
+	m := messages(preferredLang())
+	const mbYesNo, mbIconQuestion, idYes = 0x4, 0x20, 6
+	r, _, _ := procMessageBox.Call(0,
+		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(m.StartPrompt))),
+		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(m.StartPromptTitle))),
+		mbYesNo|mbIconQuestion)
+	return r == idYes
 }
 
 func answers(c *http.Client, base string) bool {

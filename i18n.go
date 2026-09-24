@@ -120,6 +120,9 @@ type msgs struct {
 	AboutStatus  string
 	AboutData    string
 	AboutLicense string
+
+	StartPromptTitle string
+	StartPrompt      string
 }
 
 // trayKeys is the map from struct field to catalogue key, in one place so the
@@ -144,6 +147,8 @@ var trayKeys = map[string]string{
 	"AboutTitle": "tray.about", "AboutTagline": "about.tagline",
 	"AboutConsole": "about.console", "AboutStatus": "about.status",
 	"AboutData": "about.data", "AboutLicense": "settings.license",
+
+	"StartPromptTitle": "service.startPromptTitle", "StartPrompt": "service.startPromptBody",
 }
 
 func messages(lang string) msgs {
@@ -184,6 +189,9 @@ func messages(lang string) msgs {
 		AboutStatus:  t(trayKeys["AboutStatus"]),
 		AboutData:    t(trayKeys["AboutData"]),
 		AboutLicense: t(trayKeys["AboutLicense"]),
+
+		StartPromptTitle: t(trayKeys["StartPromptTitle"]),
+		StartPrompt:      t(trayKeys["StartPrompt"]),
 	}
 }
 

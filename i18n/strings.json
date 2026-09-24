@@ -1175,6 +1175,42 @@
       "de": "pingping beenden und Infobereich verlassen",
       "ja": "pingping を停止してトレイを終了",
       "ko": "pingping 중지하고 트레이 종료"
+    },
+    "service.startPromptTitle": {
+      "en": "pingping is not running",
+      "zh": "pingping 未在运行",
+      "es": "pingping no está en ejecución",
+      "fr": "pingping n'est pas en cours d'exécution",
+      "pt": "O pingping não está em execução",
+      "ru": "pingping не запущен",
+      "id": "pingping tidak berjalan",
+      "de": "pingping läuft nicht",
+      "ja": "pingping が実行されていません",
+      "ko": "pingping이 실행되고 있지 않습니다"
+    },
+    "service.startPromptBody": {
+      "en": "The pingping service is stopped, so there is no console to open.\n\nStart it now? Windows will ask for administrator permission.",
+      "zh": "pingping 服务已停止，没有可打开的控制台。\n\n现在启动它吗？Windows 会要求管理员权限。",
+      "es": "El servicio pingping está detenido, así que no hay consola que abrir.\n\n¿Iniciarlo ahora? Windows pedirá permiso de administrador.",
+      "fr": "Le service pingping est arrêté, il n'y a donc pas de console à ouvrir.\n\nLe démarrer maintenant ? Windows demandera une autorisation d'administrateur.",
+      "pt": "O serviço pingping está parado, portanto não há console para abrir.\n\nIniciá-lo agora? O Windows pedirá permissão de administrador.",
+      "ru": "Служба pingping остановлена, поэтому консоль открыть нечем.\n\nЗапустить её сейчас? Windows запросит права администратора.",
+      "id": "Layanan pingping berhenti, jadi tidak ada konsol yang bisa dibuka.\n\nJalankan sekarang? Windows akan meminta izin administrator.",
+      "de": "Der pingping-Dienst ist gestoppt, daher gibt es keine Konsole zu öffnen.\n\nJetzt starten? Windows fragt nach Administratorrechten.",
+      "ja": "pingping サービスが停止しているため、開けるコンソールがありません。\n\n今すぐ開始しますか？ Windows が管理者権限を求めます。",
+      "ko": "pingping 서비스가 중지되어 열 수 있는 콘솔이 없습니다.\n\n지금 시작할까요? Windows에서 관리자 권한을 요청합니다."
+    },
+    "settings.brandDrop": {
+      "en": "Drag an image here, or paste one, or choose a file.",
+      "zh": "把图片拖到这里，或直接粘贴，或选择文件。",
+      "es": "Arrastra una imagen aquí, pégala o elige un archivo.",
+      "fr": "Glissez une image ici, collez-la, ou choisissez un fichier.",
+      "pt": "Arraste uma imagem para cá, cole uma, ou escolha um arquivo.",
+      "ru": "Перетащите изображение сюда, вставьте его или выберите файл.",
+      "id": "Seret gambar ke sini, tempel, atau pilih berkas.",
+      "de": "Ziehen Sie ein Bild hierher, fügen Sie eines ein, oder wählen Sie eine Datei.",
+      "ja": "画像をここにドラッグするか、貼り付けるか、ファイルを選んでください。",
+      "ko": "이미지를 여기로 끌어다 놓거나, 붙여넣거나, 파일을 선택하세요."
     }
   }
 }
