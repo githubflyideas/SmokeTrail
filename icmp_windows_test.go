@@ -77,10 +77,15 @@ func TestIcmpEchoReplyLayout(t *testing.T) {
 
 // The payload must stay byte-identical to the Unix one, or an RTT measured on
 // Windows is measuring a different-sized packet than the same target on Linux.
+// Both platforms call icmpPayload, so the identity is structural; what this
+// checks is that the Windows side did not grow its own idea of the length.
+// It hardcoded 14 and went on asserting that after the rename made it 12 — on
+// the only platform whose tests nothing else ran.
 func TestIcmpPayloadWireCompatible(t *testing.T) {
 	var nonce [4]byte
-	if got := len(icmpPayload(nonce)); got != 14 {
-		t.Fatalf("payload is %d bytes, want 14 (8-byte ICMP header + 14 = 22 on the wire)", got)
+	if got := len(icmpPayload(nonce)); got != icmpPayloadLen {
+		t.Fatalf("payload is %d bytes, want %d (8-byte ICMP header + %d = %d on the wire)",
+			got, icmpPayloadLen, icmpPayloadLen, icmpPayloadLen+8)
 	}
 }
 

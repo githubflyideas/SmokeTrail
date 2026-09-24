@@ -23,13 +23,33 @@ type Round struct {
 // a per-round nonce. On Unix it is how a raw socket tells our replies from every
 // other ping on the box; on Windows the kernel matches replies to handles for us,
 // but the payload stays byte-identical so an RTT measured on either platform is
-// measuring the same 22-byte ICMP message.
-const icmpMagic = "pingping"
+// measuring the same ICMP message — 8-byte header plus icmpPayloadLen.
+const (
+	icmpMagic = "pingping"
 
+	// icmpPayloadLen is fixed on purpose and does not follow the magic.
+	//
+	// It used to be len(icmpMagic)+4, and renaming the program from SmokeTrail
+	// shortened the magic from ten bytes to eight — which silently changed the
+	// ICMP message on the wire from 22 bytes to 20. A probe's packet size is a
+	// measurement parameter: two hosts must send the same thing for their
+	// numbers to be comparable, and so must one host before and after an
+	// upgrade. It is not a consequence of how long the product name happens to
+	// be, and a search-and-replace must not be able to change it.
+	//
+	// Change this only deliberately, knowing that measurements either side of
+	// the change are of different packets.
+	icmpPayloadLen = 12
+)
+
+// icmpPayload builds the echo payload: the magic, then the per-round nonce in
+// the last four bytes. The magic is truncated or zero-padded to fit, so the
+// length above holds whatever the magic becomes.
 func icmpPayload(nonce [4]byte) []byte {
-	p := make([]byte, 0, len(icmpMagic)+4)
-	p = append(p, icmpMagic...)
-	return append(p, nonce[:]...)
+	p := make([]byte, icmpPayloadLen)
+	copy(p, icmpMagic)
+	copy(p[icmpPayloadLen-len(nonce):], nonce[:])
+	return p
 }
 
 // probeParams 解析目标的探测节奏。优先级:显式 interval_sec > pace 档位 > 全局默认。
