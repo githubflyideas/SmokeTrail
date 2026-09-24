@@ -192,7 +192,13 @@ Section "pingping" SecMain
   Pop $0   ; exit code
   Pop $1   ; captured output
   DetailPrint "$1"
-  ${If} $0 != 0
+  ; Exit 11 means the service exists and something after that went wrong. Saying
+  ; "could not be registered" for a registered service sent every attempt to
+  ; diagnose this at the wrong step, for three releases.
+  ${If} $0 == 11
+    MessageBox MB_ICONEXCLAMATION|MB_OK \
+      "pingping is installed and the service is registered, but it did not start:$\n$\n$1$\nStart it with:$\n  sc start pingping"
+  ${ElseIf} $0 != 0
     MessageBox MB_ICONSTOP|MB_OK \
       "The files were installed, but the pingping service could not be registered (exit $0).$\n$\n$1$\nYou can retry with:$\n  $INSTDIR\pingping.exe install --port $Port"
   ${EndIf}

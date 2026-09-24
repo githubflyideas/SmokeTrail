@@ -233,6 +233,20 @@ func runServiceVerb(verb string, opt options) int {
 	return doServiceVerb(verb, opt)
 }
 
+// afterRegistration marks a failure that happened once the service already
+// existed. The distinction is not cosmetic: for three releases the installer
+// reported "the service could not be registered" for a service that was
+// registered, and every attempt to diagnose it went looking at registration.
+// Whatever else is true, a message must not name the wrong step.
+type afterRegistration struct{ err error }
+
+func (e afterRegistration) Error() string { return e.err.Error() }
+func (e afterRegistration) Unwrap() error { return e.err }
+
+// exitRegisteredNotStarted is the installer's cue to say so. Any other non-zero
+// code means the registration itself did not happen.
+const exitRegisteredNotStarted = 11
+
 func doServiceVerb(verb string, opt options) int {
 	var err error
 	if verb == "install" {
@@ -242,6 +256,10 @@ func doServiceVerb(verb string, opt options) int {
 	}
 	if err != nil {
 		log.Printf("%s failed: %v", verb, err)
+		var after afterRegistration
+		if errors.As(err, &after) {
+			return exitRegisteredNotStarted
+		}
 		return 1
 	}
 	return 0
@@ -332,7 +350,8 @@ func installService(opt options) error {
 		log.Printf("warning: could not grant %s write access to %s (%v %s)", svcSID, cfg.DataDir, err, out)
 		log.Printf("         falling back to LocalService, which is broader than intended")
 		if out, err := run("icacls", cfg.DataDir, "/grant", `*S-1-5-19:(OI)(CI)M`); err != nil {
-			return fmt.Errorf("the service cannot write to %s: %v %s", cfg.DataDir, err, out)
+			return afterRegistration{fmt.Errorf(
+				"the service is registered but cannot write to %s: %v %s", cfg.DataDir, err, out)}
 		}
 	}
 
@@ -365,7 +384,8 @@ func installService(opt options) error {
 	}
 
 	if err := s.Start(); err != nil && !alreadyRunning(err) {
-		return fmt.Errorf("service registered but would not start: %w", err)
+		return afterRegistration{fmt.Errorf(
+			"the %s service is registered but would not start: %w", svcName, err)}
 	}
 	if reinstalled {
 		log.Printf("updated the existing %s service", svcName)
@@ -501,11 +521,22 @@ func createOrUpdateService(m *mgr.Mgr, exe string, args []string, c mgr.Config) 
 //
 // A deleted service does not disappear until every handle to it is closed, and
 // until then it exists enough to refuse being recreated: CreateService returns
-// ERROR_SERVICE_MARKED_FOR_DELETE. An open Services.msc is all it takes, and
-// after a few failed installs and a few `sc delete` attempts it is the state a
-// machine is most likely to be in. It clears on its own within seconds once the
-// handle goes, so this waits rather than failing with an error whose remedy is
-// "close a window you may not know is open".
+// ERROR_SERVICE_MARKED_FOR_DELETE. An open Services.msc is all it takes.
+//
+// There is no way to clear this from user mode. The handles belong to other
+// processes, and forcing them shut means reaching into those processes with
+// undocumented calls — not something an installer gets to do to a machine. So
+// the only honest options are to avoid creating the state and to wait it out.
+//
+// Avoiding it is the important half, and it is already done elsewhere: this
+// program never deletes its own registration to replace it, it reconfigures in
+// place. The state comes from someone running `sc delete` by hand.
+//
+// Waiting is this. It clears within seconds once the handle goes, so twenty
+// seconds covers a Services.msc that is about to refresh and a dozen exited
+// sc.exe processes. What it cannot cover is a window someone leaves open, and
+// the message for that case says what to do in the words of someone who has
+// never heard of a handle — because the person running an installer has not.
 func createWaitingOutDeletion(m *mgr.Mgr, exe string, c mgr.Config, args []string) (*mgr.Service, error) {
 	deadline := time.Now().Add(20 * time.Second)
 	for attempt := 1; ; attempt++ {
@@ -518,9 +549,11 @@ func createWaitingOutDeletion(m *mgr.Mgr, exe string, c mgr.Config, args []strin
 		}
 		if time.Now().After(deadline) {
 			return nil, fmt.Errorf(
-				"the previous %s service is still marked for deletion after 20s. "+
-					"Something still holds a handle to it — close Services.msc and "+
-					"Task Manager, then install again, or reboot", svcName)
+				"Windows is still removing the previous %s service and will not let "+
+					"a new one be created until it finishes. This usually takes a few "+
+					"seconds and completes on its own. Close the Services window and "+
+					"Task Manager if they are open, then run the installer again. If it "+
+					"keeps happening, restart the computer and install once more", svcName)
 		}
 		if attempt == 1 {
 			log.Printf("the previous %s registration is still being deleted; waiting", svcName)
