@@ -173,7 +173,7 @@ func (h *handler) Execute(_ []string, req <-chan svc.ChangeRequest, status chan<
 		evError(evConfigInvalid, "configuration rejected: %v", err)
 		return true, exitConfig
 	}
-	a, err := startApp(cfg, h.opt.port)
+	a, err := startApp(cfg, h.opt.port, h.opt.localOnly)
 	if err != nil {
 		evError(evStartupFailed, "startup failed: %v", err)
 		return true, exitStartup
@@ -275,6 +275,17 @@ func doServiceVerb(verb string, opt options) int {
 // Defender exclusion is worth a warning, not a rollback of a service that is
 // otherwise installed and running.
 func installService(opt options) error {
+	// An installed Windows program is configured in its own interface, not by
+	// re-running the installer with a flag — that is a Unix idiom, and carrying it
+	// over is what put the bind address on a service command line where nothing
+	// could show it and nothing could change it. So --localhost is a flag for a
+	// foreground or portable run only. Refusing it here is deliberate: accepting
+	// it and quietly doing nothing would be the same trap in the other direction.
+	if opt.localOnly {
+		return fmt.Errorf("--localhost is not an install option on Windows: the console's " +
+			"bind address is a setting.\nInstall first, then set it under Settings -> Console " +
+			"(127.0.0.1 is the default, and that is loopback already)")
+	}
 	exe, err := os.Executable()
 	if err != nil {
 		return err
@@ -312,7 +323,7 @@ func installService(opt options) error {
 	// The data directory is pinned explicitly: a service starts with an arbitrary
 	// working directory, so a relative default would land somewhere surprising.
 	args := append([]string{"run", "--data", cfg.DataDir},
-		stripFlags(opt.rawArgs, "data", "log-file", "port")...)
+		stripFlags(opt.rawArgs, "data", "log-file", "port", "localhost")...)
 
 	s, reinstalled, err := createOrUpdateService(m, exe, args, mgr.Config{
 		DisplayName:      svcName,
@@ -361,12 +372,7 @@ func installService(opt options) error {
 	}
 
 	port := strings.TrimPrefix(portOf(cfg.Listen), ":")
-	if out, err := run("netsh", "advfirewall", "firewall", "add", "rule",
-		"name="+fwRule, "dir=in", "action=allow", "protocol=TCP",
-		"localport="+port, "profile=private,domain",
-		"description=pingping web console"); err != nil {
-		log.Printf("warning: firewall rule not added — the console will only answer on this machine (%v %s)", err, out)
-	}
+	applyFirewallRule(hostOf(cfg.Listen), port)
 
 	// Real-time scanning of an actively-written SQLite file shows up as I/O jitter
 	// in exactly the measurements this tool exists to make. Best-effort: Defender
@@ -453,6 +459,40 @@ func uninstallService() error {
 func run(name string, args ...string) (string, error) {
 	out, err := exec.Command(name, args...).CombinedOutput()
 	return strings.TrimSpace(string(out)), err
+}
+
+// applyFirewallRule points the inbound rule at the port the console is actually
+// on, or removes it when the console is not on the network at all.
+//
+// It is called on install and by the `firewall` verb, which is what the tray's
+// restart runs. Before that verb existed, the rule was added once at install and
+// never touched again — while both the tray and the console told the operator
+// that restarting the service "fixes the firewall rule at the same time". It did
+// not. Change the port in the console, restart as instructed, and the rule still
+// named the old port, with the interface saying the opposite.
+//
+// A loopback bind gets no rule: there is nothing for it to admit, and a stale
+// allow rule for a port nobody can reach is worse than none — it reads, to
+// whoever audits it later, like an opening that is in use.
+func applyFirewallRule(bind, port string) {
+	if isLoopbackBind(bind) {
+		if out, err := run("netsh", "advfirewall", "firewall", "delete", "rule",
+			"name="+fwRule); err != nil {
+			log.Printf("note: no firewall rule to remove (%v %s)", err, out)
+		} else {
+			log.Printf("console is bound to %s, so the firewall rule was removed", bind)
+		}
+		return
+	}
+	// Delete first: netsh adds a second rule of the same name rather than
+	// replacing, and a leftover rule for the previous port would keep it open.
+	run("netsh", "advfirewall", "firewall", "delete", "rule", "name="+fwRule)
+	if out, err := run("netsh", "advfirewall", "firewall", "add", "rule",
+		"name="+fwRule, "dir=in", "action=allow", "protocol=TCP",
+		"localport="+port, "profile=private,domain",
+		"description=pingping web console"); err != nil {
+		log.Printf("warning: firewall rule not added — the console will only answer on this machine (%v %s)", err, out)
+	}
 }
 
 // stripFlags removes the named flags and their values. `install` uses it to drop

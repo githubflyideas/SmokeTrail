@@ -36,7 +36,7 @@ var demoTarget = TargetCfg{Name: "Demo", Type: "icmp", Host: "www.google.com", P
 // terminal, at the moment it happens.
 // startApp brings everything up. portOverride is the --port flag, which wins over
 // the stored setting; 0 means "whatever the console was configured with".
-func startApp(cfg *Config, portOverride int) (*app, error) {
+func startApp(cfg *Config, portOverride int, bindOverridden bool) (*app, error) {
 	store, err := NewStore(cfg.DataDir, nil)
 	if err != nil {
 		return nil, fmt.Errorf("store init failed: %w", err)
@@ -44,9 +44,21 @@ func startApp(cfg *Config, portOverride int) (*app, error) {
 	// The port is a stored setting rather than a service command-line argument,
 	// so an operator can change it where they will look for it. A flag still wins,
 	// which is what keeps a portable copy and `--localhost` predictable.
+	// The bind address is a stored setting for the same reason the port is: on
+	// Windows the alternative is a service command line, which lives in the
+	// registry, is invisible from the console, and can only be changed by
+	// re-registering the service. `--localhost` used to be baked in there, where
+	// nothing in the interface could show it and nothing could undo it.
+	//
+	// A flag still wins, so a foreground or portable run stays predictable.
 	if portOverride == 0 {
 		if p := store.ConsolePort(); p != 0 {
 			cfg.Listen = hostOf(cfg.Listen) + ":" + strconv.Itoa(p)
+		}
+	}
+	if !bindOverridden {
+		if b := store.ConsoleBind(); b != "" {
+			cfg.Listen = b + portOf(cfg.Listen)
 		}
 	}
 	if n, err := store.TargetRows(); err == nil && n == 0 {

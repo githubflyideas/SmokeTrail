@@ -1211,6 +1211,42 @@
       "de": "Ziehen Sie ein Bild hierher, fügen Sie eines ein, oder wählen Sie eine Datei.",
       "ja": "画像をここにドラッグするか、貼り付けるか、ファイルを選んでください。",
       "ko": "이미지를 여기로 끌어다 놓거나, 붙여넣거나, 파일을 선택하세요."
+    },
+    "settings.bindTitle": {
+      "en": "Listen on",
+      "zh": "监听地址",
+      "es": "Escuchar en",
+      "fr": "Écouter sur",
+      "pt": "Escutar em",
+      "ru": "Слушать на",
+      "id": "Dengarkan di",
+      "de": "Lauschen auf",
+      "ja": "待ち受けアドレス",
+      "ko": "수신 주소"
+    },
+    "settings.bindHelp": {
+      "en": "127.0.0.1 keeps the console on this machine — nobody else can open it. 0.0.0.0 opens it to everyone who can reach this host; set a password first, and only on a network you trust.",
+      "zh": "127.0.0.1 表示控制台只在本机可用，别人打不开。0.0.0.0 表示对所有能访问到这台机器的人开放 —— 先设好密码，并且只在可信网络上这么做。",
+      "es": "127.0.0.1 mantiene la consola en esta máquina; nadie más puede abrirla. 0.0.0.0 la abre a cualquiera que alcance este host: ponga antes una contraseña y hágalo solo en una red de confianza.",
+      "fr": "127.0.0.1 garde la console sur cette machine — personne d'autre ne peut l'ouvrir. 0.0.0.0 l'ouvre à quiconque atteint cet hôte : définissez d'abord un mot de passe, et seulement sur un réseau de confiance.",
+      "pt": "127.0.0.1 mantém o console nesta máquina — mais ninguém consegue abri-lo. 0.0.0.0 abre para qualquer um que alcance este host; defina uma senha antes, e só em uma rede confiável.",
+      "ru": "127.0.0.1 оставляет консоль только на этой машине — больше никто её не откроет. 0.0.0.0 открывает её всем, кто может достучаться до этого хоста: сначала задайте пароль и делайте это только в доверенной сети.",
+      "id": "127.0.0.1 menjaga konsol hanya di mesin ini — orang lain tidak bisa membukanya. 0.0.0.0 membukanya untuk siapa pun yang dapat menjangkau host ini; setel kata sandi dahulu, dan hanya di jaringan tepercaya.",
+      "de": "127.0.0.1 hält die Konsole auf diesem Rechner — sonst kann sie niemand öffnen. 0.0.0.0 öffnet sie für alle, die diesen Host erreichen; vergeben Sie vorher ein Passwort, und nur in einem vertrauenswürdigen Netz.",
+      "ja": "127.0.0.1 はコンソールをこの端末だけに留めます（他の誰も開けません）。0.0.0.0 はこのホストに到達できる全員に開きます。先にパスワードを設定し、信頼できるネットワークでのみ行ってください。",
+      "ko": "127.0.0.1은 콘솔을 이 컴퓨터에만 둡니다 — 다른 사람은 열 수 없습니다. 0.0.0.0은 이 호스트에 접근할 수 있는 모두에게 엽니다. 먼저 비밀번호를 설정하고, 신뢰하는 네트워크에서만 하세요."
+    },
+    "settings.bindPending": {
+      "en": "Listening on {now} now; {next} takes effect after a restart.",
+      "zh": "当前监听 {now}，重启服务后变为 {next}。",
+      "es": "Escuchando en {now} ahora; {next} se aplica tras reiniciar.",
+      "fr": "Écoute sur {now} actuellement ; {next} s'appliquera après un redémarrage.",
+      "pt": "Escutando em {now} agora; {next} entra em vigor após reiniciar.",
+      "ru": "Сейчас слушает {now}; {next} вступит в силу после перезапуска.",
+      "id": "Sekarang mendengarkan di {now}; {next} berlaku setelah restart.",
+      "de": "Lauscht derzeit auf {now}; {next} gilt nach einem Neustart.",
+      "ja": "現在は {now} で待ち受けています。{next} は再起動後に有効になります。",
+      "ko": "현재 {now}에서 수신 중입니다. {next}는 재시작 후 적용됩니다."
     }
   }
 }

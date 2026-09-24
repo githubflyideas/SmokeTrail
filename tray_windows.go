@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -546,10 +547,18 @@ func (t *tray) command(id uint32) {
 	case idStopService:
 		runElevated("cmd.exe", "/c net stop "+svcName)
 	case idRestart:
-		// Also re-point the firewall rule, because the reason to restart is
-		// usually that the port changed in the console.
-		runElevated("cmd.exe", "/c net stop "+svcName+
-			" & net start "+svcName)
+		// Re-point the firewall rule as well, because the reason to restart is
+		// usually that the port or the bind address changed in the console. This
+		// comment claimed that before the `firewall` verb existed to make it
+		// true: the command was `net stop & net start`, which never touched the
+		// firewall, while the console told the operator that restarting had
+		// handled it.
+		if exe, err := os.Executable(); err == nil {
+			runElevated("cmd.exe", "/c net stop "+svcName+
+				" & \""+exe+"\" firewall & net start "+svcName)
+		} else {
+			runElevated("cmd.exe", "/c net stop "+svcName+" & net start "+svcName)
+		}
 	case idSettings:
 		t.open(stamped(t.consoleU + "/settings"))
 	case idUpdates:

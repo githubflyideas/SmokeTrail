@@ -299,12 +299,17 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 	mux.HandleFunc("GET /api/me", guard(func(w http.ResponseWriter, r *http.Request) {
 		sn, _ := current(r)
 		writeJSON(w, map[string]any{
-			"user":           sn.user,
-			"role":           sn.role,
-			"version":        version,
-			"data_dir":       cfg.DataDir,
-			"listen":         cfg.Listen,
-			"port":           portNum(cfg.Listen),
+			"user":     sn.user,
+			"role":     sn.role,
+			"version":  version,
+			"data_dir": cfg.DataDir,
+			"listen":   cfg.Listen,
+			"port":     portNum(cfg.Listen),
+			// What is running now, and what is stored for next time. They differ
+			// between a change and the restart that applies it, and the page has
+			// to be able to say which is which.
+			"bind":           hostOf(cfg.Listen),
+			"bind_pending":   store.ConsoleBind(),
 			"retention_days": cfg.RetentionDays,
 			"has_logo":       func() bool { _, _, ok := store.Logo(); return ok }(),
 		})
@@ -403,20 +408,48 @@ func newMux(cfg *Config, store *Store, run *Runner) http.Handler {
 	// rebuilding it underneath the request that asked would drop that request — so
 	// this records the intent and the answer says what to do next.
 	mux.HandleFunc("POST /api/settings/port", admin(func(w http.ResponseWriter, r *http.Request) {
-		var b struct{ Port int }
+		var b struct {
+			Port int
+			Bind string
+		}
 		if !decodeJSON(w, r, &b) {
 			return
 		}
-		if err := store.SetConsolePort(b.Port); err != nil {
-			jsonErr(w, http.StatusBadRequest, err.Error())
-			return
+		// Validate both before storing either. Half-applying this pair is how a
+		// service ends up bound to an address it cannot reach on a port nothing
+		// admits, with no console left to correct it from.
+		if b.Port != 0 {
+			if err := validatePortValue(b.Port); err != nil {
+				jsonErr(w, http.StatusBadRequest, err.Error())
+				return
+			}
+		}
+		if b.Bind != "" {
+			if err := validateBind(b.Bind); err != nil {
+				jsonErr(w, http.StatusBadRequest, err.Error())
+				return
+			}
+		}
+		if b.Port != 0 {
+			if err := store.SetConsolePort(b.Port); err != nil {
+				jsonErr(w, http.StatusBadRequest, err.Error())
+				return
+			}
+		}
+		if b.Bind != "" {
+			if err := store.SetConsoleBind(b.Bind); err != nil {
+				jsonErr(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			log.Printf("console: bind address will be %s after a restart", b.Bind)
 		}
 		log.Printf("console: port will be %d after a restart", b.Port)
 		writeJSON(w, map[string]any{
 			"ok":      true,
 			"port":    b.Port,
+			"bind":    b.Bind,
 			"applied": false,
-			"note":    "Restart the pingping service to apply it — the tray icon can do that, and it fixes the firewall rule at the same time.",
+			"note":    "Restart the pingping service to apply it — the tray icon can do that, and it re-points the firewall rule at the same time.",
 		})
 	}))
 

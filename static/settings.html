@@ -98,9 +98,12 @@ dt{color:var(--dim)} dd{margin:0;font-family:ui-monospace,Consolas,monospace;wor
     <p class="sub">Takes effect when the service restarts. The tray icon can restart it,
       and fixes the firewall rule at the same time.</p>
     <div class="row">
-      <div style="flex:0 0 140px"><label for="portIn" data-i18n="settings.portTitle">Port</label><input id="portIn" type="number" min="1" max="65535"></div>
+      <div style="flex:0 0 120px"><label for="portIn" data-i18n="settings.portTitle">Port</label><input id="portIn" type="number" min="1" max="65535"></div>
+      <div style="flex:0 0 190px"><label for="bindIn" data-i18n="settings.bindTitle">Listen on</label><input id="bindIn" type="text" spellcheck="false"></div>
       <button id="portGo" data-i18n="settings.save">Save</button>
     </div>
+    <p class="sub" data-i18n="settings.bindHelp">127.0.0.1 keeps the console on this machine — nobody else can open it. 0.0.0.0 opens it to everyone who can reach this host; set a password first, and only on a network you trust.</p>
+    <p class="sub" id="bindNow"></p>
     <div class="msg" id="portMsg"></div>
   </section>
 
@@ -171,6 +174,16 @@ async function load() {
   $('abData').textContent = me.data_dir;
   $('abRet').textContent = me.retention_days + ' ' + T('settings.days');
   $('portIn').value = me.port;
+  // Running now, and stored for next time. Between a save and the restart that
+  // applies it those differ, and a field that showed only one of them would be
+  // lying in exactly the window where someone is checking their own work.
+  $('bindIn').value = me.bind_pending || me.bind || '';
+  if (me.bind_pending && me.bind_pending !== me.bind) {
+    $('bindNow').textContent = T('settings.bindPending')
+      .replace('{now}', me.bind).replace('{next}', me.bind_pending);
+  } else {
+    $('bindNow').textContent = '';
+  }
 
   if (me.role === 'admin') {
     $('secUsers').classList.remove('hide');
@@ -267,7 +280,8 @@ $('nuGo').onclick = async () => {
 $('portGo').onclick = async () => {
   const m = $('portMsg');
   try {
-    const d = await api('POST', '/api/settings/port', { Port: +$('portIn').value });
+    const d = await api('POST', '/api/settings/port',
+      { Port: +$('portIn').value, Bind: $('bindIn').value.trim() });
     say(m, d.note || 'Saved.', 'warn');
   } catch (e) { say(m, e.message, 'err'); }
 };

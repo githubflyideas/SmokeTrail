@@ -30,7 +30,7 @@ COMMANDS
 
 FLAGS
   --port N         console port (default 8518)
-  --localhost      bind 127.0.0.1 only — nobody else on the network can reach it
+  --localhost      {{LOCALHOSTDESC}}
   --days N         days of history to keep (default 300)
   --data DIR       where the database lives (see DATA below)
 
@@ -126,6 +126,7 @@ func printHelp(w io.Writer) {
 	install, uninstall, exe := "(Windows only)", "(Windows only)", "./pingping"
 	trayDesc, consoleDesc := "(Windows only)", "(Windows only)"
 	bareDesc := "same as run"
+	localhostDesc := "bind 127.0.0.1 only — nobody else on the network can reach it"
 	if runtime.GOOS == "windows" {
 		install = "register as a Windows service (asks for elevation)"
 		uninstall = "stop and remove the service (data is kept)"
@@ -133,6 +134,10 @@ func printHelp(w io.Writer) {
 		consoleDesc = "open the console; starts the service and icon if they are down"
 		bareDesc = "console if a service is installed here, otherwise run"
 		exe = "pingping.exe"
+		// An installed service is configured in the console, not by re-running
+		// the installer with flags. Saying so here is cheaper than the support
+		// round it saves.
+		localhostDesc = "foreground runs only — an installed service takes its bind address from Settings"
 	}
 	t := helpCommon + body + helpFooter
 	r := strings.NewReplacer(
@@ -144,6 +149,7 @@ func printHelp(w io.Writer) {
 		"{{TRAYDESC}}", trayDesc,
 		"{{CONSOLEDESC}}", consoleDesc,
 		"{{BAREDESC}}", bareDesc,
+		"{{LOCALHOSTDESC}}", localhostDesc,
 	)
 	io.WriteString(w, r.Replace(t))
 }

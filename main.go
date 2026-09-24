@@ -48,7 +48,7 @@ func main() {
 	case "selftest":
 		runSelftest(os.Stdout)
 		return
-	case "run", "install", "uninstall", "tray", "console":
+	case "run", "install", "uninstall", "tray", "console", "firewall":
 		args = args[1:]
 	case "":
 	default:
@@ -75,6 +75,9 @@ func main() {
 	// logged-in user's session, because a service cannot display UI at all.
 	if verb == "tray" {
 		os.Exit(runTrayCompanion(opt))
+	}
+	if verb == "firewall" {
+		os.Exit(runFirewallVerb(opt))
 	}
 
 	// `console`, and a bare launch of an installed copy, both mean "show me the
@@ -162,7 +165,7 @@ func serveForeground(opt options) error {
 	if err != nil {
 		return err
 	}
-	a, err := startApp(cfg, opt.port)
+	a, err := startApp(cfg, opt.port, opt.localOnly)
 	if err != nil {
 		return err
 	}

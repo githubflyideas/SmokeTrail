@@ -30,7 +30,9 @@ type Config struct {
 
 func defaultConfig() *Config {
 	return &Config{
-		Listen:        "0.0.0.0:8518",
+		// Loopback by default; see defaultBind in settings.go for why that is a
+		// security decision and not a preference. The console changes it.
+		Listen:        defaultBind + ":8518",
 		DataDir:       "./data",
 		Probe:         ProbeCfg{IntervalSec: 60, Packets: 20, GapMs: 50, TimeoutMs: 1000},
 		HotDays:       2,   // raw samples: enough for the sub-day windows
