@@ -458,9 +458,9 @@ func stripFlags(args []string, names ...string) []string {
 func createOrUpdateService(m *mgr.Mgr, exe string, args []string, c mgr.Config) (*mgr.Service, bool, error) {
 	s, err := m.OpenService(svcName)
 	if err != nil {
-		s, err = m.CreateService(svcName, exe, c, args...)
+		s, err = createWaitingOutDeletion(m, exe, c, args)
 		if err != nil {
-			return nil, false, fmt.Errorf("create service: %w", err)
+			return nil, false, err
 		}
 		return s, false, nil
 	}
@@ -481,9 +481,52 @@ func createOrUpdateService(m *mgr.Mgr, exe string, args []string, c mgr.Config) 
 	}
 	if err := s.UpdateConfig(c); err != nil {
 		s.Close()
+		if errors.Is(err, windows.ERROR_SERVICE_MARKED_FOR_DELETE) {
+			// The registration is a corpse: deleted, but not gone until the last
+			// handle to it closes. Reconfiguring it is not possible; creating it
+			// again is, once Windows lets go.
+			ns, cerr := createWaitingOutDeletion(m, exe, c, args)
+			if cerr != nil {
+				return nil, false, cerr
+			}
+			return ns, false, nil
+		}
 		return nil, false, fmt.Errorf("update the existing %s service: %w", svcName, err)
 	}
 	return s, true, nil
+}
+
+// createWaitingOutDeletion registers the service, waiting out a previous
+// registration that is still being deleted.
+//
+// A deleted service does not disappear until every handle to it is closed, and
+// until then it exists enough to refuse being recreated: CreateService returns
+// ERROR_SERVICE_MARKED_FOR_DELETE. An open Services.msc is all it takes, and
+// after a few failed installs and a few `sc delete` attempts it is the state a
+// machine is most likely to be in. It clears on its own within seconds once the
+// handle goes, so this waits rather than failing with an error whose remedy is
+// "close a window you may not know is open".
+func createWaitingOutDeletion(m *mgr.Mgr, exe string, c mgr.Config, args []string) (*mgr.Service, error) {
+	deadline := time.Now().Add(20 * time.Second)
+	for attempt := 1; ; attempt++ {
+		s, err := m.CreateService(svcName, exe, c, args...)
+		if err == nil {
+			return s, nil
+		}
+		if !errors.Is(err, windows.ERROR_SERVICE_MARKED_FOR_DELETE) {
+			return nil, fmt.Errorf("create service: %w", err)
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf(
+				"the previous %s service is still marked for deletion after 20s. "+
+					"Something still holds a handle to it — close Services.msc and "+
+					"Task Manager, then install again, or reboot", svcName)
+		}
+		if attempt == 1 {
+			log.Printf("the previous %s registration is still being deleted; waiting", svcName)
+		}
+		time.Sleep(time.Second)
+	}
 }
 
 // stopAndWait asks a service to stop and waits for it to actually be stopped,

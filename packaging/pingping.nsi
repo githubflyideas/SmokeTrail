@@ -182,12 +182,19 @@ Section "pingping" SecMain
 
   ; The service registration itself. We are already elevated, so the exe's own
   ; self-elevation path is skipped and this runs straight through.
+  ; ExecToStack, not ExecToLog: the installer already HAS the reason this
+  ; failed, and the old dialog threw it away and told the operator to go and run
+  ; a command to find out — a round trip, on the one machine where the fault is
+  ; reproducible, for a string that was in $1 the whole time. It goes to the
+  ; details pane as well, via DetailPrint, so both places have it.
   DetailPrint "Registering the pingping service..."
-  nsExec::ExecToLog '"$INSTDIR\pingping.exe" install --port $Port'
-  Pop $0
+  nsExec::ExecToStack '"$INSTDIR\pingping.exe" install --port $Port'
+  Pop $0   ; exit code
+  Pop $1   ; captured output
+  DetailPrint "$1"
   ${If} $0 != 0
     MessageBox MB_ICONSTOP|MB_OK \
-      "The files were installed, but the pingping service could not be registered (exit $0).$\n$\nRun this from an elevated prompt to see why:$\n  $INSTDIR\pingping.exe install --port $Port"
+      "The files were installed, but the pingping service could not be registered (exit $0).$\n$\n$1$\nYou can retry with:$\n  $INSTDIR\pingping.exe install --port $Port"
   ${EndIf}
 
   ; Start the tray now rather than making the operator sign out and back in.
